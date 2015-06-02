@@ -1,9 +1,11 @@
 import FWCore.ParameterSet.Config as cms
 
 candidateVertexMerger = cms.EDProducer("CandidateVertexMerger",
+       primaryVertices = cms.InputTag("offlinePrimaryVertices"),
        secondaryVertices = cms.InputTag("inclusiveCandidateVertexFinder"),
        maxFraction = cms.double(0.7),
-       minSignificance = cms.double(2)
+       minSignificance = cms.double(2),
+       doMerging=cms.bool(True)                                       
 )
 
 

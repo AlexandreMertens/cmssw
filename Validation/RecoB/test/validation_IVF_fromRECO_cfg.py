@@ -19,18 +19,45 @@ PUid = True
 #List of taggers and taginfo to be considered (see example in: DQMOffline/RecoB/python/bTagCommon_cff.py)
 from DQMOffline.RecoB.bTagCommon_cff import *
 tagConfig = cms.VPSet(
-        #cms.PSet(
-        #    bTagGenericAnalysisBlock,
-        #    label = cms.InputTag("combinedInclusiveSecondaryVertexV2BJetTags"),
-        #    folder = cms.string("CSVv2")
-        #),
         cms.PSet(
              bTagSimpleSVAnalysisBlock,
-             label = cms.InputTag("pfSimpleSecondaryVertexHighEffBJetTags"),
-             folder = cms.string("SSVHE")
+             #label = cms.InputTag("pfSimpleSecondaryVertexHighEffBJetTags"),
+             label = cms.InputTag("simpleInclusiveSecondaryVertexHighEffBJetTags"),
+             folder = cms.string("SISVHE")
         ),
-
 )
+
+# Rerunning the iclusive vertexing 
+process.load("RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff")
+process.load("RecoVertex.AdaptiveVertexFinder.trackVertexArbitrator_cfi")
+process.load("RecoVertex.AdaptiveVertexFinder.vertexMerger_cfi")
+process.load("RecoVertex.AdaptiveVertexFinder.inclusiveVertexFinder_cfi")
+
+#process.vertexMerger.maxFraction=cms.double(0.7)
+#process.vertexMerger.minSignificance=cms.double(2)
+#process.vertexMerger.doMerging=cms.bool(True)
+
+process.MyInclusiveVertex = cms.Sequence(process.inclusiveVertexFinder * process.vertexMerger * process.trackVertexArbitrator * process.inclusiveSecondaryVertices)
+
+# Rerunning the iclusive candidate vertexing 
+#process.load("RecoVertex.AdaptiveVertexFinder.candidateVertexArbitrator_cfi")
+#process.load("RecoVertex.AdaptiveVertexFinder.candidateVertexMerger_cfi")
+#process.load("RecoVertex.AdaptiveVertexFinder.inclusiveCandidateVertexFinder_cfi")
+
+#process.candidateVertexMerger.maxFraction=cms.double(0.7)
+#process.candidateVertexMerger.minSignificance=cms.double(2) 
+
+#process.MyInclusiveCandidateVertex = cms.Sequence(process.inclusiveCandidateVertexFinder * process.candidateVertexMerger * process.candidateVertexArbitrator * process.inclusiveCandidateSecondaryVertices )
+
+# My tagger not default in reco
+# Running the simpleInclusiveSecondaryVertexHighEffBJetTags
+
+process.load("RecoBTag.SecondaryVertex.simpleInclusiveSecondaryVertexHighEffBJetTags_cfi")
+process.load("RecoBTag.SecondaryVertex.inclusiveSecondaryVertexFinderFilteredTagInfos_cfi")
+process.load("RecoBTag.SecondaryVertex.bToCharmDecayVertexMerger_cfi")
+process.load("RecoBTag.SecondaryVertex.secondaryVertex_cff")
+#process.load("RecoBTag.SecondaryVertex.bVertexFilter_cfi")
+process.MyTagger = cms.Sequence(process.MyInclusiveVertex * process.inclusiveSecondaryVerticesFiltered * process.bToCharmDecayVertexMerged * process.inclusiveSecondaryVertexFinderFilteredTagInfos * process.simpleInclusiveSecondaryVertexHighEffBJetTags)
 
 """
 end customization
@@ -49,6 +76,8 @@ process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
 
 if runOnMC:
+    #Simple 
+
     #for MC jet flavour
     process.load("PhysicsTools.JetMCAlgos.CaloJetsMCFlavour_cfi")
     process.AK4byRef.jets = cms.InputTag("ak4PFJetsCHS")
@@ -98,7 +127,7 @@ if runOnMC:
 else:
     process.dqmSeq = cms.Sequence(process.bTagAnalysis * process.bTagHarvest * process.dqmSaver)
 
-process.plots = cms.Path(process.dqmSeq)
+process.plots = cms.Path(process.MyTagger * process.dqmSeq)
     
 process.dqmEnv.subSystemFolder = 'BTAG'
 process.dqmSaver.producer = 'DQM'
