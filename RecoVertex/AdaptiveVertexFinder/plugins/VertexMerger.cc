@@ -51,7 +51,7 @@ class TemplatedVertexMerger : public edm::stream::EDProducer<> {
        bool trackFilter(const reco::TrackRef &track) const;
   
        void svMerger(typename Product::iterator sv, typename Product::iterator sv2);
-       void checkMergedVtx(typename Product::iterator svtx, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv);
+       bool checkMergedVtx(typename Product::iterator svtx, typename Product::iterator svtx2, TransientVertex mergedVertex, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv);
 
        edm::EDGetTokenT<reco::VertexCollection> token_primaryVertex;
        edm::EDGetTokenT<Product> 	        token_secondaryVertex;
@@ -93,6 +93,9 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
           recoVertices->push_back(*sv);
         }
 	
+
+        bool isValid;
+
 	//std::cout << "=====================================================================================================================================" << std::endl;
 	//std::cout << " Original RecoVertices size is: " << recoVertices->size() <<   std::endl;
 	//std::cout << "minSignif " << minSignificance << std::endl;
@@ -127,9 +130,11 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
          
 		        //Merging the shared vertices
 		        //std::cout << "doing the 1st merging: " <<   std::endl;
-		        svMerger(sv,sv2);
-			// Testing if the vertex make sense. Print out                                           
-			checkMergedVtx(sv,theTTBuilder,pv);
+		        //svMerger(sv,sv2);
+			// Testing if the vertex make sense. Print out         
+			TransientVertex mergedVertex;                                  
+			isValid = checkMergedVtx(sv,sv2,mergedVertex,theTTBuilder,pv);
+                        if (isValid == 1) std::cout << "Vertex Valid" << std::endl; //svMerger(sv,sv2);
 			sv2=recoVertices->erase(sv2)-1;
 			//std::cout << "it size is: " << recoVertices->size() <<   std::endl;
 			
@@ -138,9 +143,10 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
 		  {
 
 			//std::cout << "doing the 2nd merging: " <<   std::endl;
-                        svMerger(sv2,sv);
-			// Testing if the vertex make sense. Print out                                                                                                              
-                        checkMergedVtx(sv2,theTTBuilder,pv);
+                        //svMerger(sv2,sv);
+			// Testing if the vertex make sense. Print out          
+			TransientVertex mergedVertex;                                                                                                    
+                        checkMergedVtx(sv2,sv,mergedVertex,theTTBuilder,pv);
                         sv=recoVertices->erase(sv)-1;
 			sv2=recoVertices->end();
                         //std::cout << "it size is: " << recoVertices->size() <<   std::endl;
@@ -215,7 +221,7 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
 
 // Check the merged vertex
 template <>
-void TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::iterator svtx, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
+bool TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::iterator svtx, typename Product::iterator svtx2, TransientVertex mergedVertex, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
 {
   VertexDistance3D vdist;
   VertexDistanceXY vdist2d;
@@ -236,51 +242,65 @@ void TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::itera
     tt_vtx.push_back(transientTrack);
   }
 
-  TransientVertex testFitVertex;
-  testFitVertex = theAdaptiveFitter.vertex(tt_vtx);
-  
-  if(testFitVertex.isValid()){
+  //bool sharingTracks = false;
 
-    //std::cout << "Original tracks merged vtx: " << svtx->tracksSize() << "  Refitted tracks merged vtx: " <<  testFitVertex.refittedTracks().size() <<  std::endl;
-    float diffsize = fabs(svtx->tracksSize() - testFitVertex.refittedTracks().size());
+  for(reco::Vertex::trackRef_iterator ti_sv = svtx2->tracks_begin(); ti_sv!= svtx2->tracks_end(); ++ti_sv){
+    reco::Vertex::trackRef_iterator it = find(svtx->tracks_begin(), svtx->tracks_end(), *ti_sv);
+    if (it==svtx->tracks_end()){
+      reco::Track rftrk = svtx2->refittedTrack(*ti_sv);
+      reco::TransientTrack transientTrack = theTTBuilder->build(rftrk);
+      tt_vtx.push_back(transientTrack);
+    }//else sharingTracks=true;
+  }
+
+  mergedVertex = theAdaptiveFitter.vertex(tt_vtx);
+  
+  if(mergedVertex.isValid()){
+
+    //std::cout << "Original tracks merged vtx: " << svtx->tracksSize() << "  Refitted tracks merged vtx: " <<  mergedVertex.refittedTracks().size() <<  std::endl;
+    float diffsize = fabs(svtx->tracksSize() - mergedVertex.refittedTracks().size());
     
-    Measurement1D dlen= vdist.distance(pv,testFitVertex);
-    Measurement1D dlen2= vdist2d.distance(pv,testFitVertex);
+    Measurement1D dlen= vdist.distance(pv,mergedVertex);
+    Measurement1D dlen2= vdist2d.distance(pv,mergedVertex);
     
     GlobalVector dir;
-    std::vector<reco::TransientTrack> ts = testFitVertex.originalTracks();
+    std::vector<reco::TransientTrack> ts = mergedVertex.originalTracks();
     for(std::vector<reco::TransientTrack>::const_iterator i = ts.begin();
 	i != ts.end(); ++i) {
-      float w = testFitVertex.trackWeight(*i);
+      float w = mergedVertex.trackWeight(*i);
       if (w > 0.5) dir+=i->impactPointState().globalDirection();
     }
  
   
-    GlobalPoint psv(testFitVertex.position().x(),testFitVertex.position().y(),testFitVertex.position().z());
+    GlobalPoint psv(mergedVertex.position().x(),mergedVertex.position().y(),mergedVertex.position().z());
     GlobalPoint ppv(pv.position().x(),pv.position().y(),pv.position().z());
     
     float vscal = dir.unit().dot((psv-ppv).unit());
  
     //std::cout <<"-------------------------------------------------------------------------------------------------------------------------------------"<<  std::endl;
     //std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;
-    //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << testFitVertex.normalisedChiSquared() << " vscal: " << vscal  <<  std::endl;
-    //std::cout <<testFitVertex.position().x()<<" "<<testFitVertex.position().y()<<" "<<testFitVertex.position().z()<<std::endl;
+    //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal  <<  std::endl;
+    //std::cout <<mergedVertex.position().x()<<" "<<mergedVertex.position().y()<<" "<<mergedVertex.position().z()<<std::endl;
     //std::cout <<pv.position().x()<<" "<<pv.position().y()<<" "<<pv.position().z()<<std::endl;
     
   
-    if(!(diffsize < 2 && dlen.significance() > 0.5 && vscal > 0.95 && testFitVertex.normalisedChiSquared() < 10 && dlen2.significance() > 2.5)){
+    if(!(diffsize < 2 && dlen.significance() > 0.5 && vscal > 0.95 && mergedVertex.normalisedChiSquared() < 10 && dlen2.significance() > 2.5)){
       //std::cout << "WARNING: Merged vertex not converging or not displaced "<<  std::endl;
       //std::cout <<"-------------------------------------------------------------------------------------------------------------------------------------"<<  std::endl; 
       //std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;                                                              
-      //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << testFitVertex.normalisedChiSquared() << " vscal: " << vscal <<  std::endl;                                                                                                                                                               
+      //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal <<  std::endl;                                                                                                                                                               
       //std::cout <<"Diff Size:  "<<diffsize<<std::endl;                                                       
     }
-  }else std::cout << "WARNING: Merged vertex not valid"<<  std::endl;  
-
+    return true;
+  }
+  else {
+    std::cout << "WARNING: Merged vertex not valid"<<  std::endl;
+    return false;  
+  }
 }
 //------
 template <>
-void TemplatedVertexMerger<reco::VertexCompositePtrCandidate>::checkMergedVtx(typename Product::iterator svtx, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
+bool TemplatedVertexMerger<reco::VertexCompositePtrCandidate>::checkMergedVtx(typename Product::iterator svtx,  typename Product::iterator svtx2, TransientVertex mergedVertex, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
 {
   
   VertexDistance3D vdist;
@@ -300,37 +320,39 @@ void TemplatedVertexMerger<reco::VertexCompositePtrCandidate>::checkMergedVtx(ty
      tt_vtx.push_back(transientTrack);
   }
   
-  TransientVertex testFitVertex;
-  testFitVertex = theAdaptiveFitter.vertex(tt_vtx);
+  mergedVertex = theAdaptiveFitter.vertex(tt_vtx);
   
-  if(testFitVertex.isValid()){
-    float diffsize = fabs(svtx->daughterPtrVector().size()- testFitVertex.refittedTracks().size());
-    //std::cout << "Original tracks merged vtx: " << svtx->daughterPtrVector().size() << "  Refitted tracks merged vtx: " <<  testFitVertex.refittedTracks().size()  <<  std::endl;
+  if(mergedVertex.isValid()){
+    float diffsize = fabs(svtx->daughterPtrVector().size()- mergedVertex.refittedTracks().size());
+    //std::cout << "Original tracks merged vtx: " << svtx->daughterPtrVector().size() << "  Refitted tracks merged vtx: " <<  mergedVertex.refittedTracks().size()  <<  std::endl;
   
-    Measurement1D dlen= vdist.distance(pv,testFitVertex);
-    Measurement1D dlen2= vdist2d.distance(pv,testFitVertex);
+    Measurement1D dlen= vdist.distance(pv,mergedVertex);
+    Measurement1D dlen2= vdist2d.distance(pv,mergedVertex);
   
     GlobalVector dir;
-    std::vector<reco::TransientTrack> ts = testFitVertex.originalTracks();
+    std::vector<reco::TransientTrack> ts = mergedVertex.originalTracks();
     for(std::vector<reco::TransientTrack>::const_iterator i = ts.begin();
 	i != ts.end(); ++i) {
-      float w = testFitVertex.trackWeight(*i);
+      float w = mergedVertex.trackWeight(*i);
       if (w > 0.5) dir+=i->impactPointState().globalDirection();
     }
     
-    GlobalPoint psv(testFitVertex.position().x(),testFitVertex.position().y(),testFitVertex.position().z());
+    GlobalPoint psv(mergedVertex.position().x(),mergedVertex.position().y(),mergedVertex.position().z());
     GlobalPoint ppv(pv.position().x(),pv.position().y(),pv.position().z());
     float vscal = dir.unit().dot((psv-ppv).unit());
 
-    if(!(diffsize < 2 && dlen.significance() > 0.5 && vscal > 0.95 && testFitVertex.normalisedChiSquared() < 10 && dlen2.significance() > 2.5)){
+    if(!(diffsize < 2 && dlen.significance() > 0.5 && vscal > 0.95 && mergedVertex.normalisedChiSquared() < 10 && dlen2.significance() > 2.5)){
       std::cout << "WARNING: Merged vertex not converging or not displaced "<<  std::endl;
     }
   
     //std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;
-    //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << testFitVertex.normalisedChiSquared() << " vscal: " << vscal  <<std::endl;
-
-  }else std::cout << "WARNING: Merged vertex not valid"<<  std::endl;
-  
+    //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal  <<std::endl;
+    return true;
+  }
+  else {
+    std::cout << "WARNING: Merged vertex not valid"<<  std::endl;
+    return false;
+    }
 }
 
 // Merger. Vertex svi becomes the merging of svi and svj ---------- 
