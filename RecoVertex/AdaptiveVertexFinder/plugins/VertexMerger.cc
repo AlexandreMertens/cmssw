@@ -135,7 +135,10 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
 			TransientVertex mergedVertex;                                  
 			isValid = checkMergedVtx(sv,sv2,mergedVertex,theTTBuilder,pv);
                         if (isValid == 1) std::cout << "Vertex Valid" << std::endl; //svMerger(sv,sv2);
-			sv2=recoVertices->erase(sv2)-1;
+                        recoVertices->push_back(mergedVertex);
+			recoVertices->erase(sv2);
+                        sv=recoVertices->erase(sv)-1;
+                        sv2=recoVertices->end();
 			//std::cout << "it size is: " << recoVertices->size() <<   std::endl;
 			
                   }
