@@ -77,9 +77,9 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
 {
 
 
-        std::cout << " #################################################" << std::endl;
-        std::cout << " ##########         New Event          ###########" << std::endl;
-        std::cout << " #################################################" << std::endl;
+        //std::cout << " #################################################" << std::endl;
+        //std::cout << " ##########         New Event          ###########" << std::endl;
+        //std::cout << " #################################################" << std::endl;
 
 
 	using namespace reco;
@@ -150,10 +150,11 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
                             std::cout << "vertex size is: " << recoVertices->size() <<   std::endl;
 
 
+                            /*
                             Double_t fr_rm;
 
                             std::cout << " X-check " << vertexTools::computeSharedTracks(VTX(mergedVertex),*sv,0.0) << " " << vertexTools::computeSharedTracks(VTX(mergedVertex),*sv2,0.0) << std::endl;
-
+                            
                             for(typename Product::iterator sv_rm = recoVertices->begin(); sv_rm < recoVertices->end(); ++sv_rm) {
                               fr_rm=vertexTools::computeSharedTracks(VTX(mergedVertex),*sv_rm,0.0);
                               std::cout<<fr_rm << std::endl;
@@ -166,11 +167,21 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
                             sv=recoVertices->begin();
                             sv2=sv;
                             //std::cout << "it size is: " << recoVertices->size() <<   std::endl;
+                            */
+
+                            *sv=VTX(mergedVertex);
+                            sv2=recoVertices->erase(sv2)-1;
+
 			}
                         else 
                         {
                             std::cout << "Vertex Invalid" << std::endl;
-                            sv2=recoVertices->erase(sv2)-1;
+                            if (fr < fr2) sv2=recoVertices->erase(sv2)-1;
+                            else 
+                            {
+                              sv=recoVertices->erase(sv)-1;
+                              sv2=recoVertices->end();
+                            }
                         }
 			//std::cout << "it size is: " << recoVertices->size() <<   std::endl;
 			
@@ -296,37 +307,8 @@ TransientVertex TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Pro
     }//else sharingTracks=true;
   }
 
-  std::cout << " sv ntracks : " << svtx->tracksSize() << " sv2 ntracks : " << svtx2->tracksSize() << std::endl;
-
-  std::cout << " test 1 v1: " << vertexTools::computeSharedTracks(*svtx,svTracks,0.0) << std::endl;
-  std::cout << " test 1 v2: " << vertexTools::computeSharedTracks(*svtx2,svTracks,0.0) << std::endl;
-
-
-  TransientVertex mg1 = theAdaptiveFitter.vertex(tt_vtx);
-  reco::Vertex sv1 = reco::Vertex(mg1);
-
-  std::cout << " test 2 v1: " << vertexTools::computeSharedTracks(*svtx,sv1,0.0) << std::endl;
-  std::cout << " test 2 v2: " << vertexTools::computeSharedTracks(*svtx2,sv1,0.0) << std::endl;
-
   TransientVertex mergedVertex = theAdaptiveFitter.vertex(tt_vtx);
   
-  std::cout << "merged vertex has : " << tt_vtx.size() << " tracks! check:" << mergedVertex.originalTracks().size() << " and weights : " << mergedVertex.hasTrackWeight() << std::endl;
-
-  reco::Vertex sv = reco::Vertex(mergedVertex);
-
-/*
-  std::vector<reco::TrackRef> svTracks;
-
-  for(std::vector<reco::TrackBaseRef>::const_iterator iter = sv.tracks_begin(); iter != sv.tracks_end(); iter++)
-    if (sv.trackWeight(*iter) >= 0.1)
-      svTracks.push_back(iter->castTo<reco::TrackRef>());
-*/
-  std::cout << " test : " << vertexTools::computeSharedTracks(*svtx,svTracks,0.0) << std::endl;
-
-
-  std::cout << "with " << vertexTools::computeSharedTracks(sv, *svtx) << " shared tracks... " << std::endl; 
-
-
   if(mergedVertex.isValid()){
 
     //std::cout << "Original tracks merged vtx: " << svtx->tracksSize() << "  Refitted tracks merged vtx: " <<  mergedVertex.refittedTracks().size() <<  std::endl;
@@ -358,11 +340,11 @@ TransientVertex TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Pro
     
   
     if(!(diffsize < 2 && dlen.significance() > 0.5 && vscal > 0.95 && mergedVertex.normalisedChiSquared() < 10 && dlen2.significance() > 2.5)){
-      std::cout << "WARNING: Merged vertex not converging or not displaced "<<  std::endl;
-      std::cout <<"-------------------------------------------------------------------------------------------------------------------------------------"<<  std::endl; 
-      std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;                                                              
-      std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal <<  std::endl;                                                                                                                                                               
-      std::cout <<"Diff Size:  "<<diffsize<<std::endl;        
+      //std::cout << "WARNING: Merged vertex not converging or not displaced "<<  std::endl;
+      //std::cout <<"-------------------------------------------------------------------------------------------------------------------------------------"<<  std::endl; 
+      //std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;                                                              
+      //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal <<  std::endl;                                                                                                                                                               
+      //std::cout <<"Diff Size:  "<<diffsize<<std::endl;        
       TransientVertex mergedVertex_bad;
       return mergedVertex_bad; 
     }
