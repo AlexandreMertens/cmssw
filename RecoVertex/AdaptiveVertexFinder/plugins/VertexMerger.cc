@@ -36,6 +36,7 @@
 #include "RecoVertex/ConfigurableVertexReco/interface/ConfigurableVertexReconstructor.h"
 #include "TrackingTools/PatternTools/interface/TwoTrackMinimumDistance.h"
 #include "TrackingTools/IPTools/interface/IPTools.h"
+#include "RecoVertex/VertexTools/interface/SharedTracks.h"
 
 //#include "RecoVertex/AdaptiveVertexFinder/interface/TTHelpers.h"
 
@@ -51,7 +52,7 @@ class TemplatedVertexMerger : public edm::stream::EDProducer<> {
        bool trackFilter(const reco::TrackRef &track) const;
   
        void svMerger(typename Product::iterator sv, typename Product::iterator sv2);
-       bool checkMergedVtx(typename Product::iterator svtx, typename Product::iterator svtx2, TransientVertex mergedVertex, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv);
+       TransientVertex checkMergedVtx(typename Product::iterator svtx, typename Product::iterator svtx2, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv);
 
        edm::EDGetTokenT<reco::VertexCollection> token_primaryVertex;
        edm::EDGetTokenT<Product> 	        token_secondaryVertex;
@@ -74,6 +75,13 @@ TemplatedVertexMerger<VTX>::TemplatedVertexMerger(const edm::ParameterSet &param
 template <class VTX>
 void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetup &es)
 {
+
+
+        std::cout << " #################################################" << std::endl;
+        std::cout << " ##########         New Event          ###########" << std::endl;
+        std::cout << " #################################################" << std::endl;
+
+
 	using namespace reco;
 
 	edm::Handle<VertexCollection> primaryVertices;
@@ -105,43 +113,69 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
 
 	// ======= ALEX WAY ============================================================================
 	if(doMerging){
-
-          //std::cout << "Original vtx size is: " << recoVertices->size() <<   std::endl;
+           
+          std::cout << "Original vtx size is: " << recoVertices->size() <<   std::endl;
           for(typename Product::iterator sv = recoVertices->begin();
 	    sv < recoVertices->end(); ++sv) {
 
-	    //std::cout << "new s1" << std::endl;
+	    std::cout << "new s1" << std::endl;
 
 	    VertexState s1(RecoVertex::convertPos(sv->position()),RecoVertex::convertError(sv->error()));
             for(typename Product::iterator sv2 = sv;
 	      sv2 < recoVertices->end(); ++sv2) {
-		  //std::cout << "new s2" << std::endl;
+		  std::cout << "new s2" << std::endl;
 		  VertexState s2(RecoVertex::convertPos(sv2->position()),RecoVertex::convertError(sv2->error()));
 		  //std::cout << "computing shared tracks" << std::endl;
-                  double fr=vertexTools::computeSharedTracks(*sv, *sv2);
-		  double fr2=vertexTools::computeSharedTracks(*sv2, *sv);
-        //        std::cout << sv2-recoVertices->begin() << " vs " << sv-recoVertices->begin() << " : " << fr << " "  <<  computeSharedTracks(*sv, *sv2) << " sig " << dist.distance(*sv,*sv2).significance() << std::endl;
+                  Double_t fr=vertexTools::computeSharedTracks(*sv, *sv2);
+		  Double_t fr2=vertexTools::computeSharedTracks(*sv2, *sv);
+                  std::cout << sv-recoVertices->begin() << " vs " << sv2-recoVertices->begin() << " : " << fr << " " << " sig " << dist.distance(s1,s2).significance() << std::endl;
           //      std::cout << (fr > maxFraction) << " && " << (dist.distance(*sv,*sv2).significance() < 2)  <<  " && " <<  (sv-sv2!=0)  << " && " <<  (fr >= computeSharedTracks(*sv2, *sv))  << std::endl;
 		//if (fr2 && sv-sv2!=0) std::cout << "shared tracks : " << vertexTools::computeSharedTracks(*sv, *sv2) <<" " <<vertexTools::computeSharedTracks(*sv2, *sv) << std::endl;
-		  if (fr > maxFraction && dist.distance(s1,s2).significance() < minSignificance && fr >= fr2 && sv-sv2!=0)
+		  if (TMath::Max(fr,fr2) > maxFraction && dist.distance(s1,s2).significance() < minSignificance && sv-sv2!=0)
                     //&& fr >= vertexTools::computeSharedTracks(*sv2, *sv) )
 		    {
-                     // std::cout << "shared " << sv-recoVertices->begin() << " and "  << sv2-recoVertices->begin() << " fractions: " << fr << " , "  << computeSharedTracks(*sv2, *sv) << " sig: " <<  dist.distance(*sv,*sv2).significance() <<  std::endl
+                        //std::cout << "shared " << sv-recoVertices->begin() << " and "  << sv2-recoVertices->begin() << " fractions: " << fr << " , "  << vertexTools::computeSharedTracks(*sv2, *sv) << " sig: " <<  dist.distance(s1,s2).significance() <<  std::endl;
          
 		        //Merging the shared vertices
-		        //std::cout << "doing the 1st merging: " <<   std::endl;
-		        //svMerger(sv,sv2);
-			// Testing if the vertex make sense. Print out         
-			TransientVertex mergedVertex;                                  
-			isValid = checkMergedVtx(sv,sv2,mergedVertex,theTTBuilder,pv);
-                        if (isValid == 1) std::cout << "Vertex Valid" << std::endl; //svMerger(sv,sv2);
-                        recoVertices->push_back(mergedVertex);
-			recoVertices->erase(sv2);
-                        sv=recoVertices->erase(sv)-1;
-                        sv2=recoVertices->end();
+			TransientVertex mergedVertex = checkMergedVtx(sv,sv2,theTTBuilder,pv);
+                        isValid = mergedVertex.isValid();
+
+			std::cout << "valid : " << isValid << " with tracks: " << mergedVertex.originalTracks().size() << std::endl;
+                       
+ 
+                        if (isValid == 1) 
+			{
+                            
+                            std::cout << "Vertex Valid" << std::endl; //svMerger(sv,sv2);
+                            std::cout << "vertex size is: " << recoVertices->size() <<   std::endl;
+
+
+                            Double_t fr_rm;
+
+                            std::cout << " X-check " << vertexTools::computeSharedTracks(VTX(mergedVertex),*sv,0.0) << " " << vertexTools::computeSharedTracks(VTX(mergedVertex),*sv2,0.0) << std::endl;
+
+                            for(typename Product::iterator sv_rm = recoVertices->begin(); sv_rm < recoVertices->end(); ++sv_rm) {
+                              fr_rm=vertexTools::computeSharedTracks(VTX(mergedVertex),*sv_rm,0.0);
+                              std::cout<<fr_rm << std::endl;
+                              if (fr_rm > 0.99) {sv_rm = recoVertices->erase(sv_rm)-1; std::cout << " erased" << std::endl;}
+                            }
+                            
+                            std::cout << "   pushing back the merged vertex..." << std::endl;
+                            recoVertices->push_back(VTX(mergedVertex));
+
+                            sv=recoVertices->begin();
+                            sv2=sv;
+                            //std::cout << "it size is: " << recoVertices->size() <<   std::endl;
+			}
+                        else 
+                        {
+                            std::cout << "Vertex Invalid" << std::endl;
+                            sv2=recoVertices->erase(sv2)-1;
+                        }
 			//std::cout << "it size is: " << recoVertices->size() <<   std::endl;
 			
                   }
+		  /*
 		  else if (fr2 > maxFraction && dist.distance(s1,s2).significance() < minSignificance && sv-sv2!=0)
 		  {
 
@@ -155,6 +189,7 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
                         //std::cout << "it size is: " << recoVertices->size() <<   std::endl;
 
 		  }
+		 */
 	      }
            }
 	}
@@ -224,7 +259,7 @@ void TemplatedVertexMerger<VTX>::produce(edm::Event &event, const edm::EventSetu
 
 // Check the merged vertex
 template <>
-bool TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::iterator svtx, typename Product::iterator svtx2, TransientVertex mergedVertex, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
+TransientVertex TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::iterator svtx, typename Product::iterator svtx2, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
 {
   VertexDistance3D vdist;
   VertexDistanceXY vdist2d;
@@ -239,9 +274,13 @@ bool TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::itera
   
   std::vector<reco::TransientTrack> tt_vtx;
 
+  std::vector<reco::TrackRef> svTracks;
+
   for(reco::Vertex::trackRef_iterator t_svtx = svtx->tracks_begin(); t_svtx!= svtx->tracks_end(); ++t_svtx){
     reco::Track rftrk = svtx->refittedTrack(*t_svtx);
-    reco::TransientTrack transientTrack = theTTBuilder->build(rftrk);
+    //reco::TransientTrack transientTrack = theTTBuilder->build(rftrk);
+    reco::TransientTrack transientTrack = theTTBuilder->build(t_svtx->castTo<reco::TrackRef>());
+    svTracks.push_back(t_svtx->castTo<reco::TrackRef>());
     tt_vtx.push_back(transientTrack);
   }
 
@@ -251,13 +290,43 @@ bool TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::itera
     reco::Vertex::trackRef_iterator it = find(svtx->tracks_begin(), svtx->tracks_end(), *ti_sv);
     if (it==svtx->tracks_end()){
       reco::Track rftrk = svtx2->refittedTrack(*ti_sv);
-      reco::TransientTrack transientTrack = theTTBuilder->build(rftrk);
+      //reco::TransientTrack transientTrack = theTTBuilder->build(rftrk);
+      reco::TransientTrack transientTrack = theTTBuilder->build(ti_sv->castTo<reco::TrackRef>());
       tt_vtx.push_back(transientTrack);
     }//else sharingTracks=true;
   }
 
-  mergedVertex = theAdaptiveFitter.vertex(tt_vtx);
+  std::cout << " sv ntracks : " << svtx->tracksSize() << " sv2 ntracks : " << svtx2->tracksSize() << std::endl;
+
+  std::cout << " test 1 v1: " << vertexTools::computeSharedTracks(*svtx,svTracks,0.0) << std::endl;
+  std::cout << " test 1 v2: " << vertexTools::computeSharedTracks(*svtx2,svTracks,0.0) << std::endl;
+
+
+  TransientVertex mg1 = theAdaptiveFitter.vertex(tt_vtx);
+  reco::Vertex sv1 = reco::Vertex(mg1);
+
+  std::cout << " test 2 v1: " << vertexTools::computeSharedTracks(*svtx,sv1,0.0) << std::endl;
+  std::cout << " test 2 v2: " << vertexTools::computeSharedTracks(*svtx2,sv1,0.0) << std::endl;
+
+  TransientVertex mergedVertex = theAdaptiveFitter.vertex(tt_vtx);
   
+  std::cout << "merged vertex has : " << tt_vtx.size() << " tracks! check:" << mergedVertex.originalTracks().size() << " and weights : " << mergedVertex.hasTrackWeight() << std::endl;
+
+  reco::Vertex sv = reco::Vertex(mergedVertex);
+
+/*
+  std::vector<reco::TrackRef> svTracks;
+
+  for(std::vector<reco::TrackBaseRef>::const_iterator iter = sv.tracks_begin(); iter != sv.tracks_end(); iter++)
+    if (sv.trackWeight(*iter) >= 0.1)
+      svTracks.push_back(iter->castTo<reco::TrackRef>());
+*/
+  std::cout << " test : " << vertexTools::computeSharedTracks(*svtx,svTracks,0.0) << std::endl;
+
+
+  std::cout << "with " << vertexTools::computeSharedTracks(sv, *svtx) << " shared tracks... " << std::endl; 
+
+
   if(mergedVertex.isValid()){
 
     //std::cout << "Original tracks merged vtx: " << svtx->tracksSize() << "  Refitted tracks merged vtx: " <<  mergedVertex.refittedTracks().size() <<  std::endl;
@@ -271,6 +340,7 @@ bool TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::itera
     for(std::vector<reco::TransientTrack>::const_iterator i = ts.begin();
 	i != ts.end(); ++i) {
       float w = mergedVertex.trackWeight(*i);
+      std::cout << " weight : " << w << std::endl;
       if (w > 0.5) dir+=i->impactPointState().globalDirection();
     }
  
@@ -288,29 +358,32 @@ bool TemplatedVertexMerger<reco::Vertex>::checkMergedVtx(typename Product::itera
     
   
     if(!(diffsize < 2 && dlen.significance() > 0.5 && vscal > 0.95 && mergedVertex.normalisedChiSquared() < 10 && dlen2.significance() > 2.5)){
-      //std::cout << "WARNING: Merged vertex not converging or not displaced "<<  std::endl;
-      //std::cout <<"-------------------------------------------------------------------------------------------------------------------------------------"<<  std::endl; 
-      //std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;                                                              
-      //std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal <<  std::endl;                                                                                                                                                               
-      //std::cout <<"Diff Size:  "<<diffsize<<std::endl;                                                       
+      std::cout << "WARNING: Merged vertex not converging or not displaced "<<  std::endl;
+      std::cout <<"-------------------------------------------------------------------------------------------------------------------------------------"<<  std::endl; 
+      std::cout << "dlen: " << dlen.value() << " dlen2: " << dlen2.value()   <<  std::endl;                                                              
+      std::cout << "dlen Sig: " << dlen.significance() << " dlen2 Sig: " << dlen2.significance() <<" normChiSq sv:  " << mergedVertex.normalisedChiSquared() << " vscal: " << vscal <<  std::endl;                                                                                                                                                               
+      std::cout <<"Diff Size:  "<<diffsize<<std::endl;        
+      TransientVertex mergedVertex_bad;
+      return mergedVertex_bad; 
     }
-    return true;
+    return mergedVertex;
   }
   else {
     std::cout << "WARNING: Merged vertex not valid"<<  std::endl;
-    return false;  
+    return mergedVertex;  
   }
 }
 //------
 template <>
-bool TemplatedVertexMerger<reco::VertexCompositePtrCandidate>::checkMergedVtx(typename Product::iterator svtx,  typename Product::iterator svtx2, TransientVertex mergedVertex, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
+TransientVertex TemplatedVertexMerger<reco::VertexCompositePtrCandidate>::checkMergedVtx(typename Product::iterator svtx,  typename Product::iterator svtx2, edm::ESHandle<TransientTrackBuilder> theTTBuilder, const reco::Vertex pv)
 {
-  
+  /*
   VertexDistance3D vdist;
   VertexDistanceXY vdist2d;
   
   AdaptiveVertexFitter theAdaptiveFitter(
-					 //GeometricAnnealing(fitterSigmacut, fitterTini, fitterRatio),
+
+					 tGeometricAnnealing(fitterSigmacut, fitterTini, fitterRatio),
 					 GeometricAnnealing(3, 256, 0.25),
 					 DefaultLinearizationPointFinder(),
 					 KalmanVertexUpdator<5>(),
@@ -356,6 +429,9 @@ bool TemplatedVertexMerger<reco::VertexCompositePtrCandidate>::checkMergedVtx(ty
     std::cout << "WARNING: Merged vertex not valid"<<  std::endl;
     return false;
     }
+*/
+TransientVertex mergedVertex;
+return mergedVertex;
 }
 
 // Merger. Vertex svi becomes the merging of svi and svj ---------- 
