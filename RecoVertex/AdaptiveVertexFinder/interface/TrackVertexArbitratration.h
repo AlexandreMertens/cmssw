@@ -198,7 +198,22 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
                      if(w > 0.5) std::cout << " = ";
                     else std::cout << " + ";
 #endif 
-                     selTracks.push_back(tt);
+
+                     // Check if the track distance to sv is smaller than to another secondary vertices
+                     Measurement1D minDist=isv; 
+                     for(typename std::vector<VTX>::const_iterator svj = secondaryVertices.begin();
+                         svj != secondaryVertices.end(); ++svj) {
+                         if (sv == svj) continue;
+
+                         TrajectoryStateOnSurface tsosj = extrapolator.extrapolate(tt.impactPointState(), RecoVertex::convertPos(svj->position()));
+                         if(! tsosj.isValid()) continue;
+                         GlobalPoint refPointj          = tsosj.globalPosition();
+                         GlobalError refPointErrj       = tsosj.cartesianError().position();
+                         Measurement1D isvj = dist.distance(VertexState(RecoVertex::convertPos(svj->position()),RecoVertex::convertError(svj->error())),VertexState(refPointj, refPointErrj));
+                         if (isvj.significance() < minDist.significance()) minDist=isvj;
+                         }
+
+                     if (minDist.significance() >= 0.5*isv.significance() ) selTracks.push_back(tt);
                   } else
                   {
 #ifdef VTXDEBUG
@@ -207,7 +222,23 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
 #endif
                      //add also the tracks used in previous fitting that are still closer to Sv than Pv 
                      if(w > 0.5 && isv.value() <= ipv.value() && dR < dRCut) {  
-                       selTracks.push_back(tt);
+
+		     // Check if the track distance to sv is smaller than to another secondary vertices
+                     Measurement1D minDist=isv;
+                     for(typename std::vector<VTX>::const_iterator svj = secondaryVertices.begin();
+                         svj != secondaryVertices.end(); ++svj) {
+                         if (sv == svj) continue;
+
+                         TrajectoryStateOnSurface tsosj = extrapolator.extrapolate(tt.impactPointState(), RecoVertex::convertPos(svj->position()));
+                         if(! tsosj.isValid()) continue;
+                         GlobalPoint refPointj          = tsosj.globalPosition();
+                         GlobalError refPointErrj       = tsosj.cartesianError().position();
+                         Measurement1D isvj = dist.distance(VertexState(RecoVertex::convertPos(svj->position()),RecoVertex::convertError(svj->error())),VertexState(refPointj, refPointErrj));
+                         if (isvj.significance() < minDist.significance()) minDist=isvj;
+                         }
+
+                     if (minDist.significance() >= 0.5*isv.significance() ) selTracks.push_back(tt);
+//                       selTracks.push_back(tt);
 #ifdef VTXDEBUG
                        std::cout << " = ";
 #endif
