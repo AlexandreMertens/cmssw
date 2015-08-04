@@ -87,6 +87,7 @@ void TemplatedVertexArbitrator<InputContainer,VTX>::produce(edm::Event &event, c
 
 	edm::Handle<VertexCollection> primaryVertices;
 	event.getByToken(token_primaryVertex, primaryVertices);
+        Product thePrimVertexColl = *(primaryVertices.product());
 
 	std::auto_ptr<Product> recoVertices(new Product);
 	if(primaryVertices->size()!=0){ 
@@ -110,7 +111,7 @@ void TemplatedVertexArbitrator<InputContainer,VTX>::produce(edm::Event &event, c
 
 
 		//        const edm::RefVector< TrackCollection > tracksForArbitration= selectedTracks;
-		Product  theRecoVertices = theArbitrator->trackVertexArbitrator(beamSpot, pv, selectedTracks,
+		Product  theRecoVertices = theArbitrator->trackVertexArbitrator(beamSpot, thePrimVertexColl, selectedTracks,
 				theSecVertexColl);
 
 		for(unsigned int ivtx=0; ivtx < theRecoVertices.size(); ivtx++){
