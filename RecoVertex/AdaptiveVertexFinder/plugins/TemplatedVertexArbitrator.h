@@ -57,7 +57,8 @@ class TemplatedVertexArbitrator : public edm::stream::EDProducer<> {
     private:
 	bool trackFilter(const reco::TrackRef &track) const;
 
-	edm::EDGetTokenT<reco::VertexCollection> token_primaryVertex;
+	//edm::EDGetTokenT<reco::VertexCollection> token_primaryVertex;
+        edm::EDGetTokenT<Product> token_primaryVertex;
 	edm::EDGetTokenT<Product> token_secondaryVertex;
 	edm::EDGetTokenT<InputContainer>	 token_tracks; 
 	edm::EDGetTokenT<reco::BeamSpot> 	 token_beamSpot; 
@@ -68,7 +69,8 @@ class TemplatedVertexArbitrator : public edm::stream::EDProducer<> {
 template <class InputContainer, class VTX>
 TemplatedVertexArbitrator<InputContainer,VTX>::TemplatedVertexArbitrator(const edm::ParameterSet &params)
 {
-	token_primaryVertex = consumes<reco::VertexCollection>(params.getParameter<edm::InputTag>("primaryVertices"));
+	//token_primaryVertex = consumes<reco::VertexCollection>(params.getParameter<edm::InputTag>("primaryVertices"));
+        token_primaryVertex = consumes<Product>(params.getParameter<edm::InputTag>("primaryVertices"));
 	token_secondaryVertex = consumes<Product>(params.getParameter<edm::InputTag>("secondaryVertices"));
 	token_beamSpot = consumes<reco::BeamSpot>(params.getParameter<edm::InputTag>("beamSpot"));
 	token_tracks = consumes<InputContainer>(params.getParameter<edm::InputTag>("tracks"));
@@ -87,10 +89,13 @@ void TemplatedVertexArbitrator<InputContainer,VTX>::produce(edm::Event &event, c
 
 	edm::Handle<VertexCollection> primaryVertices;
 	event.getByToken(token_primaryVertex, primaryVertices);
+        //Product thePrimVertexColl = *(primaryVertices.product());
 
 	std::auto_ptr<Product> recoVertices(new Product);
 	if(primaryVertices->size()!=0){ 
 		const reco::Vertex &pv = (*primaryVertices)[0];
+
+                //const VTX &pv = (*primaryVertices)[0];
 
 		edm::Handle<InputContainer> tracks;
 		event.getByToken(token_tracks, tracks);
@@ -110,7 +115,7 @@ void TemplatedVertexArbitrator<InputContainer,VTX>::produce(edm::Event &event, c
 
 
 		//        const edm::RefVector< TrackCollection > tracksForArbitration= selectedTracks;
-		Product  theRecoVertices = theArbitrator->trackVertexArbitrator(beamSpot, pv, selectedTracks,
+		Product  theRecoVertices = theArbitrator->trackVertexArbitrator(beamSpot, pv, primaryVertices, selectedTracks,
 				theSecVertexColl);
 
 		for(unsigned int ivtx=0; ivtx < theRecoVertices.size(); ivtx++){
