@@ -51,6 +51,9 @@ class TrackVertexArbitration{
 	std::vector<VTX> trackVertexArbitrator(
           edm::Handle<reco::BeamSpot> &beamSpot, 
 	  const reco::Vertex &pv,
+	  //const VTX &pv,
+          edm::Handle<reco::VertexCollection> primaryVertices,
+          //std::vector<VTX> & primaryVertices,
 	  std::vector<reco::TransientTrack> & selectedTracks,
 	  std::vector<VTX> & secondaryVertices
 	);
@@ -136,6 +139,8 @@ template <class VTX>
 std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
          edm::Handle<reco::BeamSpot> &beamSpot, 
 	 const reco::Vertex &pv,
+	 //const VTX & pv,
+         edm::Handle<reco::VertexCollection> primaryVertices,
 	 std::vector<reco::TransientTrack> & selectedTracks,
 	 std::vector<VTX> & secondaryVertices)
 {
@@ -164,6 +169,7 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
             GlobalVector flightDir = ssv-ppv;
 //            std::cout << "Vertex : " << sv-secondaryVertices->begin() << " " << sv->position() << std::endl;
             Measurement1D dlen= vdist.distance(pv,VertexState(RecoVertex::convertPos(sv->position()),RecoVertex::convertError(sv->error())));
+//            Measurement1D dlen= vdist.distance(VertexState(RecoVertex::convertPos(pv.position()),RecoVertex::convertError(pv.error())),VertexState(RecoVertex::convertPos(sv->position()),RecoVertex::convertError(sv->error())));
             std::vector<reco::TransientTrack>  selTracks;
 	    for(unsigned int itrack = 0; itrack < selectedTracks.size(); itrack++){
 	        TransientTrack & tt = (selectedTracks)[itrack];
@@ -177,6 +183,16 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
 	 	                std::pair<bool,Measurement1D> ipvp = IPTools::absoluteImpactParameter3D(tt,pv);
 				cachedIP[itrack]=ipvp.second;
 				ipv=ipvp.second;
+
+                                // Checking the other priamry vertices
+
+                                for(unsigned int opv = 1; opv < primaryVertices->size(); opv++) {
+                                    
+                                    ipvp = IPTools::absoluteImpactParameter3D(tt,(*primaryVertices)[opv]);
+                                    if (ipvp.second.value() < ipv.value()) {ipv = ipvp.second;}
+                                    
+                                }
+
 		}
 
 		AnalyticalImpactPointExtrapolator extrapolator(tt.field());
