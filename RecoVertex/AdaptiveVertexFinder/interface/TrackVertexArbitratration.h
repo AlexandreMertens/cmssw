@@ -183,16 +183,22 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
 	 	                std::pair<bool,Measurement1D> ipvp = IPTools::absoluteImpactParameter3D(tt,pv);
 				cachedIP[itrack]=ipvp.second;
 				ipv=ipvp.second;
-
+/*
                                 // Checking the other priamry vertices
 
+                                //std::cout << " primary vertex collection size : " << primaryVertices->size() << std::endl;
                                 for(unsigned int opv = 1; opv < primaryVertices->size(); opv++) {
                                     
                                     ipvp = IPTools::absoluteImpactParameter3D(tt,(*primaryVertices)[opv]);
-                                    if (ipvp.second.value() < ipv.value()) {ipv = ipvp.second;}
+                                    if (ipvp.second.value() < ipv.value()) {
+                                        //std::cout <<" main primary  : " << ipv.value() << std::endl;
+                                        //std::cout <<" other primary : " << ipvp.second.value() << std::endl;
+                                        ipv = ipvp.second; 
+                                        //std::cout << " - > other primary, closer than the 0th" << std::endl;
+                                    }
                                     
                                 }
-
+*/
 		}
 
 		AnalyticalImpactPointExtrapolator extrapolator(tt.field());
@@ -204,11 +210,32 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
 
 		float dR = Geom::deltaR2(flightDir,tt.track()); //.eta(), flightDir.phi(), tt.track().eta(), tt.track().phi());
 
-                if( w > 0 || ( isv.significance() < sigCut && isv.value() < distCut && isv.value() < dlen.value()*dLenFraction ) )
+
+                bool trackFromOtherPV = 0;
+
+                if(( w > 0 || ( isv.significance() < sigCut && isv.value() < distCut && isv.value() < dlen.value()*dLenFraction ) ) && trackFromOtherPV == 0 )
                 {
 
+                  //std::cout << " primary vertex collection size : " << primaryVertices->size() << std::endl;
+                  for(unsigned int opv = 1; opv < primaryVertices->size(); opv++) {
+
+                    std::pair<bool,Measurement1D> iopvp = IPTools::absoluteImpactParameter3D(tt,(*primaryVertices)[opv]);
+                    Measurement1D iopv = iopvp.second;
+                    GlobalPoint ppv_temp((*primaryVertices)[opv].position().x(),(*primaryVertices)[opv].position().y(),(*primaryVertices)[opv].position().z());
+                    GlobalVector flightDir_temp = ssv-ppv_temp;
+                    float dR_temp = Geom::deltaR2(flightDir_temp,tt.track());
+
+                    if (iopv.value() < isv.value()) { //and dR_temp < dR) {
+                      std::cout <<" main primary  : " << ipv.value() <<" secondary  : " << isv.value() << std::endl;
+                      std::cout <<" other primary : " << iopv.value() << std::endl;
+                      std::cout << " - > other primary, closer than the 0th" << std::endl;
+                      std::cout << "DR_temp : " << dR_temp << " " << dR << std::endl;
+                      trackFromOtherPV = 1;
+                      }
+                    }
+
                   if(( isv.value() < ipv.value()  ) && isv.value() < distCut && isv.value() < dlen.value()*dLenFraction 
-                  && dR < dRCut  ) 
+                  && dR < dRCut  && trackFromOtherPV == 0) 
                   {
 #ifdef VTXDEBUG
                      if(w > 0.5) std::cout << " = ";
@@ -222,7 +249,7 @@ std::vector<VTX> TrackVertexArbitration<VTX>::trackVertexArbitrator(
                   else std::cout << "   ";
 #endif
                      //add also the tracks used in previous fitting that are still closer to Sv than Pv 
-                     if(w > 0.5 && isv.value() <= ipv.value() && dR < dRCut) {  
+                     if(w > 0.5 && isv.value() <= ipv.value() && dR < dRCut && trackFromOtherPV == 0) {  
                        selTracks.push_back(tt);
 #ifdef VTXDEBUG
                        std::cout << " = ";
