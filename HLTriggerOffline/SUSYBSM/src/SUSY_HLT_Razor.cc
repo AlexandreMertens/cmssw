@@ -11,13 +11,15 @@ SUSY_HLT_Razor::SUSY_HLT_Razor(const edm::ParameterSet& ps)
   edm::LogInfo("SUSY_HLT_Razor") << "Constructor SUSY_HLT_Razor::SUSY_HLT_Razor " << std::endl;
   // Get parameters from configuration file
   theTrigSummary_ = consumes<trigger::TriggerEvent>(ps.getParameter<edm::InputTag>("trigSummary"));
-  thePfMETCollection_ = consumes<edm::View<reco::MET> >(ps.getParameter<edm::InputTag>("pfMETCollection"));
+  theMETCollection_ = consumes<edm::View<reco::MET> >(ps.getParameter<edm::InputTag>("METCollection"));
   theHemispheres_ = consumes<std::vector<math::XYZTLorentzVector> >(ps.getParameter<edm::InputTag>("hemispheres"));
   triggerResults_ = consumes<edm::TriggerResults>(ps.getParameter<edm::InputTag>("TriggerResults"));
   triggerPath_ = ps.getParameter<std::string>("TriggerPath");
+  denomPath_ = ps.getParameter<std::string>("DenomPath");
+  denomPathLoose_ = ps.getParameter<std::string>("DenomPathLoose");
   triggerFilter_ = ps.getParameter<edm::InputTag>("TriggerFilter");
   caloFilter_ = ps.getParameter<edm::InputTag>("CaloFilter");
-  thePfJetCollection_ = consumes<reco::PFJetCollection>(ps.getParameter<edm::InputTag>("pfJetCollection"));
+  theJetCollection_ = consumes<edm::View<reco::Jet> >(ps.getParameter<edm::InputTag>("jetCollection"));
 }
 
 SUSY_HLT_Razor::~SUSY_HLT_Razor()
@@ -43,6 +45,21 @@ void SUSY_HLT_Razor::beginLuminosityBlock(edm::LuminosityBlock const& lumiSeg,
    edm::LogInfo("SUSY_HLT_Razor") << "SUSY_HLT_Razor::beginLuminosityBlock" << std::endl;
 }
 
+void SUSY_HLT_Razor::fillDescriptions(edm::ConfigurationDescriptions& descriptions) {
+  edm::ParameterSetDescription desc;
+  desc.add<edm::InputTag>("jetCollection",edm::InputTag("ak4PFJetsCHS"));
+  desc.add<edm::InputTag>("CaloFilter",edm::InputTag("hltRsqMR200Rsq0p01MR100Calo","","HLT"))->setComment("Calo HLT filter module used to save razor variable objects");
+  desc.add<edm::InputTag>("METCollection",edm::InputTag("pfMet"));
+  desc.add<edm::InputTag>("hemispheres",edm::InputTag("hemispheres"))->setComment("hemisphere jets used to compute razor variables");
+  desc.add<std::string>("TriggerPath","HLT_RsqMR300_Rsq0p09_MR200_v")->setComment("trigger path name");
+  desc.add<std::string>("DenomPath","HLT_Ele40_eta2p1_WP85_Gsf_v")->setComment("tight denominator trigger path name (for 1.4e34 lumi)");
+  desc.add<std::string>("DenomPathLoose","HLT_Ele35_eta2p1_WP85_Gsf_v")->setComment("loose denominator trigger path name (for 7e33 lumi)");
+  desc.add<edm::InputTag>("TriggerFilter",edm::InputTag("hltRsqMR300Rsq0p09MR200","","HLT"))->setComment("PF HLT filter module used to save razor variable objects");
+  desc.add<edm::InputTag>("TriggerResults",edm::InputTag("TriggerResults","","HLT"));
+  desc.add<edm::InputTag>("trigSummary",edm::InputTag("hltTriggerSummaryAOD"));
+  descriptions.add("SUSY_HLT_Razor_Main",desc);
+}
+
 void SUSY_HLT_Razor::analyze(edm::Event const& e, edm::EventSetup const& eSetup){
     
   edm::LogInfo("SUSY_HLT_Razor") << "SUSY_HLT_Razor::analyze" << std::endl;
@@ -56,15 +73,16 @@ void SUSY_HLT_Razor::analyze(edm::Event const& e, edm::EventSetup const& eSetup)
   e.getByToken (theHemispheres_,hemispheres);
   // get hold of the MET Collection
   edm::Handle<edm::View<reco::MET> > inputMet;
-  e.getByToken(thePfMETCollection_,inputMet);
+  e.getByToken(theMETCollection_,inputMet);
   if ( !inputMet.isValid() ){
-    edm::LogError ("SUSY_HLT_Razor") << "invalid collection: PFMET" << "\n";
+    edm::LogError ("SUSY_HLT_Razor") << "invalid collection: MET" << "\n";
    return;
   }
-  edm::Handle<reco::PFJetCollection> pfJetCollection;
-  e.getByToken (thePfJetCollection_,pfJetCollection);
-  if ( !pfJetCollection.isValid() ){
-    edm::LogError ("SUSY_HLT_Razor") << "invalid collection: PFJets" << "\n";
+  //  edm::Handle<reco::PFJetCollection> jetCollection;
+  edm::Handle<edm::View<reco::Jet> > jetCollection;
+  e.getByToken (theJetCollection_,jetCollection);
+  if ( !jetCollection.isValid() ){
+    edm::LogError ("SUSY_HLT_Razor") << "invalid collection: jets" << "\n";
     return;
   }
 
@@ -117,23 +135,36 @@ void SUSY_HLT_Razor::analyze(edm::Event const& e, edm::EventSetup const& eSetup)
   }
 
   bool hasFired = false;
-  std::string denomPath = "HLT_Ele27_eta2p1_WP85_Gsf_v1"; //trigger path used as a reference for computing turn-ons and efficiencies
   bool denomFired = false;
   const edm::TriggerNames& trigNames = e.triggerNames(*hltresults);
   unsigned int numTriggers = trigNames.size();
   for( unsigned int hltIndex=0; hltIndex<numTriggers; ++hltIndex ){
-      if (trigNames.triggerName(hltIndex).find(triggerPath_) != std::string::npos && hltresults->wasrun(hltIndex) && hltresults->accept(hltIndex)) hasFired = true;
-      if (trigNames.triggerName(hltIndex).find(denomPath) != std::string::npos && hltresults->wasrun(hltIndex) && hltresults->accept(hltIndex)) denomFired = true;
+      if (trigNames.triggerName(hltIndex).find(triggerPath_) != std::string::npos && hltresults->wasrun(hltIndex) && hltresults->accept(hltIndex)) 
+	{
+	  hasFired = true;
+	}      
+      if (trigNames.triggerName(hltIndex).find(denomPath_) != std::string::npos && hltresults->wasrun(hltIndex) && hltresults->accept(hltIndex)) {
+	denomFired = true;
+      }
+      if (trigNames.triggerName(hltIndex).find(denomPathLoose_) != std::string::npos && hltresults->wasrun(hltIndex) && hltresults->accept(hltIndex)) 
+	{
+	denomFired = true;
+	}
   }
 
-  float pfHT = 0.0;
-  for (reco::PFJetCollection::const_iterator i_pfjet = pfJetCollection->begin(); i_pfjet != pfJetCollection->end(); ++i_pfjet){
-      if (i_pfjet->pt() < 40) continue;
-      if (fabs(i_pfjet->eta()) > 3.0) continue;
-      pfHT += i_pfjet->pt();
+  float HT = 0.0;
+  
+  for (unsigned int i=0; i<jetCollection->size(); i++) {    
+    if(std::abs(jetCollection->at(i).eta()) < 3.0 && jetCollection->at(i).pt() >= 40.0){
+      HT += jetCollection->at(i).pt();
+    }
   }
-
-  float pfMET = (inputMet->front()).pt();
+  //for (reco::PFJetCollection::const_iterator i_jet = jetCollection->begin(); i_jet != jetCollection->end(); ++i_jet){
+  //    if (i_pfjet->pt() < 40) continue;
+  //    if (fabs(i_pfjet->eta()) > 3.0) continue;
+  //    pfHT += i_pfjet->pt();
+  //}
+  float MET = (inputMet->front()).pt();
 
   //this part is adapted from HLTRFilter.cc 
 
@@ -188,12 +219,12 @@ void SUSY_HLT_Razor::analyze(edm::Event const& e, edm::EventSetup const& eSetup)
           h_rsq_tight_denom->Fill(Rsq);
       }
 
-      h_ht->Fill(pfHT);
-      h_met->Fill(pfMET);
-      h_htMet->Fill(pfHT, pfMET);
-      h_ht_denom->Fill(pfHT);
-      h_met_denom->Fill(pfMET);
-      h_htMet_denom->Fill(pfHT, pfMET);
+      h_ht->Fill(HT);
+      h_met->Fill(MET);
+      h_htMet->Fill(HT, MET);
+      h_ht_denom->Fill(HT);
+      h_met_denom->Fill(MET);
+      h_htMet_denom->Fill(HT, MET);
 
       h_online_mr_vs_mr->Fill(MR, onlineMR);
       h_online_rsq_vs_rsq->Fill(Rsq, onlineRsq);
@@ -235,9 +266,9 @@ void SUSY_HLT_Razor::analyze(edm::Event const& e, edm::EventSetup const& eSetup)
       if(Rsq > 0.25) h_mr_tight_denom->Fill(MR);
       if(MR > 400) h_rsq_tight_denom->Fill(Rsq);
 
-      h_ht_denom->Fill(pfHT);
-      h_met_denom->Fill(pfMET);
-      h_htMet_denom->Fill(pfHT, pfMET);
+      h_ht_denom->Fill(HT);
+      h_met_denom->Fill(MET);
+      h_htMet_denom->Fill(HT, MET);
 
       h_online_mr_vs_mr_all->Fill(MR, onlineMR);
       h_online_rsq_vs_rsq_all->Fill(Rsq, onlineRsq);

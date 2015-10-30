@@ -14,39 +14,34 @@
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 
-#include <DataFormats/Math/interface/deltaR.h>
+#include "RecoEgamma/EgammaIsolationAlgos/interface/HcalPFClusterIsolation.h"
+#include "HLTrigger/HLTcore/interface/defaultModuleLabel.h"
 
 template<typename T1>
-HLTHcalPFClusterIsolationProducer<T1>::HLTHcalPFClusterIsolationProducer(const edm::ParameterSet& config) {
-    
+HLTHcalPFClusterIsolationProducer<T1>::HLTHcalPFClusterIsolationProducer(const edm::ParameterSet& config) :
+  pfClusterProducerHCAL_  ( consumes<reco::PFClusterCollection>(config.getParameter<edm::InputTag>("pfClusterProducerHCAL"))),
+  rhoProducer_            ( consumes<double>(config.getParameter<edm::InputTag>("rhoProducer"))),
+  pfClusterProducerHFEM_  ( consumes<reco::PFClusterCollection>(config.getParameter<edm::InputTag>("pfClusterProducerHFEM"))),
+  pfClusterProducerHFHAD_ ( consumes<reco::PFClusterCollection>(config.getParameter<edm::InputTag>("pfClusterProducerHFHAD"))),
+  useHF_                  ( config.getParameter<bool>("useHF")),
+  drMax_                  ( config.getParameter<double>("drMax")),
+  drVetoBarrel_           ( config.getParameter<double>("drVetoBarrel")),
+  drVetoEndcap_           ( config.getParameter<double>("drVetoEndcap")),
+  etaStripBarrel_         ( config.getParameter<double>("etaStripBarrel")),
+  etaStripEndcap_         ( config.getParameter<double>("etaStripEndcap")),
+  energyBarrel_           ( config.getParameter<double>("energyBarrel")),
+  energyEndcap_           ( config.getParameter<double>("energyEndcap")),
+  doRhoCorrection_        ( config.getParameter<bool>("doRhoCorrection")),
+  rhoMax_                 ( config.getParameter<double>("rhoMax")),
+  rhoScale_               ( config.getParameter<double>("rhoScale")), 
+  effectiveAreaBarrel_    ( config.getParameter<double>("effectiveAreaBarrel")),
+  effectiveAreaEndcap_    ( config.getParameter<double>("effectiveAreaEndcap")),
+  useEt_                  ( config.getParameter<bool>("useEt")) {
+  
   std::string recoCandidateProducerName = "recoCandidateProducer";
   if ((typeid(HLTHcalPFClusterIsolationProducer<T1>) == typeid(HLTHcalPFClusterIsolationProducer<reco::RecoEcalCandidate>))) recoCandidateProducerName = "recoEcalCandidateProducer";
-  
   recoCandidateProducer_ = consumes<T1Collection>(config.getParameter<edm::InputTag>(recoCandidateProducerName));
-  pfClusterProducerHCAL_     = consumes<reco::PFClusterCollection>(config.getParameter<edm::InputTag>("pfClusterProducerHCAL"));
-  useHF_                     = config.getParameter<bool>("useHF");  
-  if (useHF_) {
-    pfClusterProducerHFEM_     = consumes<reco::PFClusterCollection>(config.getParameter<edm::InputTag>("pfClusterProducerHFEM"));
-    pfClusterProducerHFHAD_    = consumes<reco::PFClusterCollection>(config.getParameter<edm::InputTag>("pfClusterProducerHFHAD"));
-  }
-
-  drMax_          = config.getParameter<double>("drMax");
-  drVetoBarrel_   = config.getParameter<double>("drVetoBarrel");
-  drVetoEndcap_   = config.getParameter<double>("drVetoEndcap");
-  etaStripBarrel_ = config.getParameter<double>("etaStripBarrel");
-  etaStripEndcap_ = config.getParameter<double>("etaStripEndcap");
-  energyBarrel_   = config.getParameter<double>("energyBarrel");
-  energyEndcap_   = config.getParameter<double>("energyEndcap");
-
-  doRhoCorrection_                = config.getParameter<bool>("doRhoCorrection");
-  if (doRhoCorrection_)
-    rhoProducer_                    = consumes<double>(config.getParameter<edm::InputTag>("rhoProducer"));
   
-  rhoMax_                         = config.getParameter<double>("rhoMax"); 
-  rhoScale_                       = config.getParameter<double>("rhoScale"); 
-  effectiveAreaBarrel_            = config.getParameter<double>("effectiveAreaBarrel");
-  effectiveAreaEndcap_            = config.getParameter<double>("effectiveAreaEndcap");
-
   produces <T1IsolationMap >();
 }
 
@@ -81,11 +76,12 @@ void HLTHcalPFClusterIsolationProducer<T1>::fillDescriptions(edm::ConfigurationD
   desc.add<double>("etaStripEndcap", 0.0);
   desc.add<double>("energyBarrel", 0.0);
   desc.add<double>("energyEndcap", 0.0);
-  descriptions.add(std::string("hlt")+std::string(typeid(HLTHcalPFClusterIsolationProducer<T1>).name()), desc);
+  desc.add<bool>("useEt", true);
+  descriptions.add(defaultModuleLabel<HLTHcalPFClusterIsolationProducer<T1>>(), desc);
 }
 
 template<typename T1>
-void HLTHcalPFClusterIsolationProducer<T1>::produce(edm::Event& iEvent, const edm::EventSetup& iSetup){
+void HLTHcalPFClusterIsolationProducer<T1>::produce(edm::StreamID sid, edm::Event& iEvent, const edm::EventSetup& iSetup) const {
   
   edm::Handle<double> rhoHandle;
   double rho = 0.0;
@@ -100,103 +96,31 @@ void HLTHcalPFClusterIsolationProducer<T1>::produce(edm::Event& iEvent, const ed
   rho = rho*rhoScale_;
 
   edm::Handle<T1Collection> recoCandHandle;
+
+  std::vector<edm::Handle<reco::PFClusterCollection>> clusterHandles;  
   edm::Handle<reco::PFClusterCollection> clusterHcalHandle;
   edm::Handle<reco::PFClusterCollection> clusterHfemHandle;
   edm::Handle<reco::PFClusterCollection> clusterHfhadHandle;
 
   iEvent.getByToken(recoCandidateProducer_,recoCandHandle);
   iEvent.getByToken(pfClusterProducerHCAL_, clusterHcalHandle);
-  const reco::PFClusterCollection* forIsolationHcal = clusterHcalHandle.product();
+  //const reco::PFClusterCollection* forIsolationHcal = clusterHcalHandle.product();
+  clusterHandles.push_back(clusterHcalHandle);
 
   if (useHF_) {
     iEvent.getByToken(pfClusterProducerHFEM_, clusterHfemHandle);
+    clusterHandles.push_back(clusterHfemHandle);
     iEvent.getByToken(pfClusterProducerHFHAD_, clusterHfhadHandle);
+    clusterHandles.push_back(clusterHfhadHandle);
   }
 
   T1IsolationMap recoCandMap;
-  
-  float dRVeto = -1.;
-  float etaStrip = -1;
+  HcalPFClusterIsolation<T1> isoAlgo(drMax_, drVetoBarrel_, drVetoEndcap_, etaStripBarrel_, etaStripEndcap_, energyBarrel_, energyEndcap_, useEt_);
   
   for (unsigned int iReco = 0; iReco < recoCandHandle->size(); iReco++) {
     T1Ref candRef(recoCandHandle, iReco);
-    
-    if (fabs(candRef->eta()) < 1.479) {
-      dRVeto = drVetoBarrel_;
-      etaStrip = etaStripBarrel_;
-    } else {
-      dRVeto = drVetoEndcap_;
-      etaStrip = etaStripEndcap_;
-    }
-    
-    float sum = 0;
-    
-    // Loop over the 3 types of PFClusters
-
-    for(unsigned i=0; i<forIsolationHcal->size(); i++) {
-      const reco::PFCluster& pfclu = (*forIsolationHcal)[i];
-      
-      if (fabs(candRef->eta()) < 1.479) {
-	if (fabs(pfclu.pt()) < energyBarrel_)
-	  continue;
-      } else {
-	if (fabs(pfclu.energy()) < energyEndcap_)
-	  continue;
-      }
-
-      float dEta = fabs(candRef->eta() - pfclu.eta());
-      if(dEta < etaStrip) continue;
-      
-      float dR = deltaR(candRef->eta(), candRef->phi(), pfclu.eta(), pfclu.phi());
-      if(dR > drMax_ || dR < dRVeto) continue;
-      
-      sum += pfclu.pt();
-    }
-
-    if (useHF_) {
-      const reco::PFClusterCollection* forIsolationHfem = clusterHfemHandle.product();
-      const reco::PFClusterCollection* forIsolationHfhad = clusterHfhadHandle.product();
-      
-      for(unsigned i=0; i<forIsolationHfem->size(); i++) {
-	const reco::PFCluster& pfclu = (*forIsolationHfem)[i];
-	
-	if (fabs(candRef->eta()) < 1.479) {
-	  if (fabs(pfclu.pt()) < energyBarrel_)
-	    continue;
-	} else {
-	  if (fabs(pfclu.energy()) < energyEndcap_)
-	    continue;
-	}
-	
-	float dEta = fabs(candRef->eta() - pfclu.eta());
-	if(dEta < etaStrip) continue;
-	
-	float dR = deltaR(candRef->eta(), candRef->phi(), pfclu.eta(), pfclu.phi());
-	if(dR > drMax_ || dR < dRVeto) continue;
-	
-	sum += pfclu.pt();
-      }
-      
-      for(unsigned i=0; i<forIsolationHfhad->size(); i++) {
-	const reco::PFCluster& pfclu = (*forIsolationHfhad)[i];
-	
-	if (fabs(candRef->eta()) < 1.479) {
-	  if (fabs(pfclu.pt()) < energyBarrel_)
-	    continue;
-	} else {
-	  if (fabs(pfclu.energy()) < energyEndcap_)
-	    continue;
-	}
-	
-	float dEta = fabs(candRef->eta() - pfclu.eta());
-	if(dEta < etaStrip) continue;
-	
-	float dR = deltaR(candRef->eta(), candRef->phi(), pfclu.eta(), pfclu.phi());
-	if(dR > drMax_ || dR < dRVeto) continue;
-	
-	sum += pfclu.pt();
-      }
-    }
+        
+    float sum = isoAlgo.getSum(candRef, clusterHandles);
  
     if (doRhoCorrection_) {
       if (fabs(candRef->eta()) < 1.479) 

@@ -6,7 +6,7 @@
 
 void pat::PackedGenParticle::pack(bool unpackAfterwards) {
     packedPt_  =  MiniFloatConverter::float32to16(p4_.Pt());
-    packedEta_ =  int16_t(p4_.Eta()/6.0f*std::numeric_limits<int16_t>::max());
+    packedY_ =  int16_t(p4_.Rapidity()/6.0f*std::numeric_limits<int16_t>::max());
     packedPhi_ =  int16_t(p4_.Phi()/3.2f*std::numeric_limits<int16_t>::max());
     packedM_   =  MiniFloatConverter::float32to16(p4_.M());
     if (unpackAfterwards) unpack(); // force the values to match with the packed ones
@@ -14,10 +14,15 @@ void pat::PackedGenParticle::pack(bool unpackAfterwards) {
 
 
 void pat::PackedGenParticle::unpack() const {
-    p4_ = PolarLorentzVector(MiniFloatConverter::float16to32(packedPt_),
-                             int16_t(packedEta_)*6.0f/std::numeric_limits<int16_t>::max(),
-                             int16_t(packedPhi_)*3.2f/std::numeric_limits<int16_t>::max(),
-                             MiniFloatConverter::float16to32(packedM_));
+    float y = int16_t(packedY_)*6.0f/std::numeric_limits<int16_t>::max();
+    float pt=MiniFloatConverter::float16to32(packedPt_);
+    float m=MiniFloatConverter::float16to32(packedM_);
+    float pz = std::tanh(y)*std::sqrt((m*m+pt*pt)/(1.-std::tanh(y)*std::tanh(y)));
+    float eta = std::asinh(pz/pt);
+    double shift = (pt<1. ? 0.1*pt : 0.1/pt); // shift particle phi to break degeneracies in angular separations
+    double sign = ( ( int(pt*10) % 2 == 0 ) ? 1 : -1 ); // introduce a pseudo-random sign of the shift
+    double phi = int16_t(packedPhi_)*3.2f/std::numeric_limits<int16_t>::max() + sign*shift*3.2/std::numeric_limits<int16_t>::max();
+    p4_ = PolarLorentzVector(pt,eta,phi,m);
     p4c_ = p4_;
     unpacked_ = true;
 }
@@ -36,22 +41,6 @@ float pat::PackedGenParticle::dz(const Point &p) const {
 
 
 //// Everything below is just trivial implementations of reco::Candidate methods
-
-pat::PackedGenParticle::const_iterator pat::PackedGenParticle::begin() const { 
-  return const_iterator( new const_iterator_imp_specific ); 
-}
-
-pat::PackedGenParticle::const_iterator pat::PackedGenParticle::end() const { 
-  return  const_iterator( new const_iterator_imp_specific ); 
-}
-
-pat::PackedGenParticle::iterator pat::PackedGenParticle::begin() { 
-  return iterator( new iterator_imp_specific ); 
-}
-
-pat::PackedGenParticle::iterator pat::PackedGenParticle::end() { 
-  return iterator( new iterator_imp_specific ); 
-}
 
 const reco::CandidateBaseRef & pat::PackedGenParticle::masterClone() const {
   throw cms::Exception("Invalid Reference")

@@ -48,7 +48,8 @@
   <class name="edm::ValueMap<pat::LookupTableRecord>" />
   <class name="edm::Wrapper<edm::ValueMap<pat::LookupTableRecord> >" />
 
-  <class name="pat::CandKinResolution"  ClassVersion="12">
+  <class name="pat::CandKinResolution"  ClassVersion="13">
+   <version ClassVersion="13" checksum="1576481716"/>
    <field name="covmatrix_" transient="true"/>
    <field name="hasMatrix_" transient="true"/>
    <version ClassVersion="12" checksum="811710989"/>
@@ -61,6 +62,14 @@
   <class name="std::vector<pat::CandKinResolution>" />
   <class name="pat::CandKinResolutionValueMap" />
   <class name="edm::Wrapper<pat::CandKinResolutionValueMap>" />
+
+  <class name="vid::CutFlowResult" ClassVersion="2">
+    <version ClassVersion="2" checksum="3732644629"/>
+  </class>
+  <class name="edm::ValueMap<vid::CutFlowResult>"/>
+  <class name="edm::Wrapper<vid::CutFlowResult>"/>
+  <class name="edm::Wrapper<edm::ValueMap<vid::CutFlowResult> >"/>
+  <class name="pat::UserHolder<vid::CutFlowResult>"/>
 
   </selection>
  <exclusion>

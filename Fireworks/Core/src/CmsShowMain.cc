@@ -28,6 +28,7 @@
 #include "TEveManager.h"
 #include "TFile.h"
 #include "TGClient.h"
+#include <KeySymbols.h>
 
 #include "Fireworks/Core/src/CmsShowMain.h"
 
@@ -53,6 +54,9 @@
 #include "Fireworks/Core/interface/FWLiteJobMetadataUpdateRequest.h"
 
 #include "Fireworks/Core/interface/ActionsList.h"
+
+#include "Fireworks/Core/interface/Context.h"
+#include "Fireworks/Core/interface/FWMagField.h"
 
 #include "Fireworks/Core/src/CmsShowTaskExecutor.h"
 #include "Fireworks/Core/interface/CmsShowMainFrame.h"
@@ -93,6 +97,7 @@ static const char* const kAdvancedRenderCommandOpt = "shine,s";
 static const char* const kHelpOpt        = "help";
 static const char* const kHelpCommandOpt = "help,h";
 static const char* const kSoftCommandOpt = "soft";
+static const char* const kExpertCommandOpt = "expert";
 static const char* const kPortCommandOpt = "port";
 static const char* const kPlainRootCommandOpt = "prompt";
 static const char* const kRootInteractiveCommandOpt = "root-interactive,r";
@@ -101,7 +106,9 @@ static const char* const kLiveCommandOpt  = "live";
 static const char* const kFieldCommandOpt = "field";
 static const char* const kFreePaletteCommandOpt = "free-palette";
 static const char* const kAutoSaveAllViews = "auto-save-all-views";
-static const char* const kAutoSaveHeight = "auto-save-height";
+static const char* const kAutoSaveType     = "auto-save-type";
+static const char* const kAutoSaveHeight   = "auto-save-height";
+static const char* const kSyncAllViews     = "sync-all-views";
 static const char* const kEnableFPE        = "enable-fpe";
 static const char* const kZeroWinOffsets   = "zero-window-offsets";
 static const char* const kNoVersionCheck   = "no-version-check";
@@ -158,7 +165,8 @@ CmsShowMain::CmsShowMain(int argc, char *argv[])
       (kSimGeomFileCommandOpt,po::value<std::string>(),   "Geometry file for browsing in table view. Default is CmsSimGeom-14.root. Can be simulation or reco geometry in TGeo format")
      (kFieldCommandOpt, po::value<double>(),             "Set magnetic field value explicitly. Default is auto-field estimation")
    (kRootInteractiveCommandOpt,                        "Enable root interactive prompt")
-   (kSoftCommandOpt,                                   "Try to force software rendering to avoid problems with bad hardware drivers")
+     (kSoftCommandOpt,                                   "Try to force software rendering to avoid problems with bad hardware drivers")
+   (kExpertCommandOpt,                                   "Enable PF user plugins.")
       (kHelpCommandOpt,                                   "Display help message");
 
  po::options_description livedesc("Live Event Display");
@@ -167,9 +175,11 @@ CmsShowMain::CmsShowMain(int argc, char *argv[])
       (kPortCommandOpt, po::value<unsigned int>(),        "Listen to port for new data files to open")
       (kLoopCommandOpt,                                   "Loop events in play mode")
       (kChainCommandOpt, po::value<unsigned int>(),       "Chain up to a given number of recently open files. Default is 1 - no chain")
-     (kLiveCommandOpt,                                   "Enforce playback mode if a user is not using display")
-     (kAutoSaveAllViews, po::value<std::string>(),       "Auto-save all views with given prefix (run_event_lumi_view.png is appended)")
-     (kAutoSaveHeight, po::value<int>(),                 "Screenshots height when auto-save-all-views is enabled");
+      (kLiveCommandOpt,                                   "Enforce playback mode if a user is not using display")
+      (kAutoSaveAllViews, po::value<std::string>(),       "Auto-save all views with given prefix (run_event_lumi_view.<auto-save-type> is appended)")
+      (kAutoSaveType,     po::value<std::string>(),       "Image type of auto-saved views, png or jpg (png is default)")
+      (kAutoSaveHeight, po::value<int>(),                 "Screenshots height when auto-save-all-views is enabled")
+      (kSyncAllViews,                                     "Synchronize all views on new event");
 
  po::options_description debugdesc("Debug");
    debugdesc.add_options()
@@ -250,16 +260,16 @@ CmsShowMain::CmsShowMain(int argc, char *argv[])
       if (access(configFilename(), R_OK) == -1)
       {
          fwLog(fwlog::kError) << "Specified configuration file does not exist. Quitting.\n";
-         exit(0);
+         exit(1);
       }
+
+      fwLog(fwlog::kInfo) << "Config "  <<  configFilename() << std::endl;
    } else {
       if (vm.count(kNoConfigFileOpt)) {
-         fwLog(fwlog::kInfo) << "No configuration is loaded, show everything.\n";
-         setConfigFilename("");
-      } else
-         setConfigFilename("default.fwc");
+         fwLog(fwlog::kInfo) << "No configuration is loaded.\n";
+         configurationManager()->setIgnore();
+      } 
    }
-   fwLog(fwlog::kInfo) << "Config "  <<  configFilename() << std::endl;
 
    // geometry
    if (vm.count(kGeomFileOpt)) {
@@ -288,6 +298,14 @@ CmsShowMain::CmsShowMain(int argc, char *argv[])
 
    TEveManager::Create(kFALSE, eveMode ? "FIV" : "FI");
 
+   if(vm.count(kExpertCommandOpt)) 
+   {
+      m_context->setHidePFBuilders(false);
+   }
+   else {
+      m_context->setHidePFBuilders(true);
+   }
+
    setup(m_navigator.get(), m_context.get(), m_metadataManager.get());
 
    if (vm.count(kZeroWinOffsets))
@@ -314,11 +332,22 @@ CmsShowMain::CmsShowMain(int argc, char *argv[])
    startupTasks()->addTask(f);
    f=boost::bind(&CmsShowMainBase::setupViewManagers,this);
    startupTasks()->addTask(f);
-   f=boost::bind(&CmsShowMainBase::setupConfiguration,this);
-   startupTasks()->addTask(f);
+
+   if(vm.count(kLiveCommandOpt))
+   {
+      f = boost::bind(&CmsShowMain::setLiveMode, this);
+      startupTasks()->addTask(f);
+   }
+      
+   if(vm.count(kFieldCommandOpt)) 
+   {
+      m_context->getField()->setSource(FWMagField::kUser);
+      m_context->getField()->setUserField(vm[kFieldCommandOpt].as<double>());
+   }
+
    f=boost::bind(&CmsShowMain::setupDataHandling,this);
    startupTasks()->addTask(f);
-
+  
    if (vm.count(kLoopOpt))
       setPlayLoop();
 
@@ -335,24 +364,26 @@ CmsShowMain::CmsShowMain(int argc, char *argv[])
       startupTasks()->addTask(f);
    }
 
-   if(vm.count(kLiveCommandOpt))
-   {
-      f = boost::bind(&CmsShowMain::setLiveMode, this);
-      startupTasks()->addTask(f);
-   }
-      
-   if(vm.count(kFieldCommandOpt)) 
-   {
-      m_context->getField()->setSource(FWMagField::kUser);
-      m_context->getField()->setUserField(vm[kFieldCommandOpt].as<double>());
-   }
    if(vm.count(kAutoSaveAllViews)) {
+      std::string type = "png";
+      if(vm.count(kAutoSaveType)) {
+         type = vm[kAutoSaveType].as<std::string>();
+         if (type != "png" && type != "jpg")
+         {
+            fwLog(fwlog::kError) << "Specified auto-save type not supported. Quitting.\n";
+            exit(1);
+         }
+      }
       std::string fmt = vm[kAutoSaveAllViews].as<std::string>();
-      fmt += "%u_%u_%llu_%s.png";
+      fmt += "%u_%u_%llu_%s.";
+      fmt += type;
       setAutoSaveAllViewsFormat(fmt);
    }
    if (vm.count(kAutoSaveHeight)) {
       setAutoSaveAllViewsHeight(vm[kAutoSaveHeight].as<int>());
+   }
+   if (vm.count(kSyncAllViews)) {
+       FWEveViewManager::syncAllViews();
    }
    if(vm.count(kNoVersionCheck)) {
       m_noVersionCheck=true;
@@ -447,6 +478,10 @@ CmsShowMain::fileChangedSlot(const TFile *file)
    if (file)
       guiManager()->titleChanged(m_navigator->frameTitle());
 
+
+   if (context()->getField()->getSource() == FWMagField::kNone) {
+      context()->getField()->resetFieldEstimate();
+   }
    m_metadataManager->update(new FWLiteJobMetadataUpdateRequest(getCurrentEvent(), m_openFile));
 }
 
@@ -478,7 +513,8 @@ void CmsShowMain::openData()
    guiManager()->updateStatus("loading file ...");
    if (fi.fFilename) {
       m_navigator->openFile(fi.fFilename);
-      m_loadedAnyInputFile = true;
+
+      setLoadedAnyInputFileAfterStartup();
       m_navigator->firstEvent();
       checkPosition();
       draw();
@@ -502,7 +538,7 @@ void CmsShowMain::appendData()
    guiManager()->updateStatus("loading file ...");
    if (fi.fFilename) {
       m_navigator->appendFile(fi.fFilename, false, false);
-      m_loadedAnyInputFile = true;
+      setLoadedAnyInputFileAfterStartup();
       checkPosition();
       draw();
       guiManager()->titleChanged(m_navigator->frameTitle());
@@ -524,7 +560,7 @@ CmsShowMain::openDataViaURL()
    if(!chosenFile.empty()) {
       guiManager()->updateStatus("loading file ...");
       if(m_navigator->openFile(chosenFile.c_str())) {
-         m_loadedAnyInputFile = true;
+         setLoadedAnyInputFileAfterStartup();
          m_navigator->firstEvent();
          checkPosition();
          draw();
@@ -613,7 +649,6 @@ CmsShowMain::setupDataHandling()
 {
    guiManager()->updateStatus("Setting up data handling...");
 
-
    // navigator filtering  ->
    m_navigator->fileChanged_.connect(boost::bind(&CmsShowMain::fileChangedSlot, this, _1));
    m_navigator->editFiltersExternally_.connect(boost::bind(&FWGUIManager::updateEventFilterEnable, guiManager(), _1));
@@ -648,8 +683,7 @@ CmsShowMain::setupDataHandling()
       }
       else
       {
-         m_loadedAnyInputFile = true;
-
+         m_loadedAnyInputFile = true; 
       }
    }
 
@@ -658,15 +692,35 @@ CmsShowMain::setupDataHandling()
       m_navigator->firstEvent();
       checkPosition();
       draw();
+      setupConfiguration();
    }
-   else if (m_monitor.get() == 0 && (eiManager()->begin() != eiManager()->end()) )
-   {
-      if (m_inputFiles.empty())
-         openDataViaURL();
-      else
-         openData();
+   else {
+      if (configFilename()[0] == '\0') {
+         guiManager()->initEmpty();
+      }
+      else {
+         setupConfiguration();
+      }
+
+      if (m_monitor.get() == 0 && (configurationManager()->getIgnore() == false)) {
+         if (m_inputFiles.empty())
+            openDataViaURL();
+         else
+            openData();
+      }
    }
 }
+
+void
+CmsShowMain::setLoadedAnyInputFileAfterStartup()
+{
+   if (m_loadedAnyInputFile == false) {
+      m_loadedAnyInputFile = true;
+      if ((configFilename()[0] == '\0') && (configurationManager()->getIgnore() == false))
+         setupConfiguration();
+   }
+}
+
 
 void
 CmsShowMain::setupSocket(unsigned int iSocket)
@@ -759,12 +813,22 @@ CmsShowMain::notified(TSocket* iSocket)
 }
 
 void
+CmsShowMain::checkKeyBindingsOnPLayEventsStateChanged()
+{
+    if (m_live) {
+        Int_t keycode = gVirtualX->KeysymToKeycode((int)kKey_Space);
+        Window_t id = FWGUIManager::getGUIManager()->getMainFrame()->GetId();
+        gVirtualX->GrabKey(id, keycode, 0, isPlaying());
+    }
+}
+
+void
 CmsShowMain::stopPlaying()
 {
    stopAutoLoadTimer();
    if (m_live)
       m_navigator->resetNewFileOnNextEvent();
-   setIsPlaying(false);
+   CmsShowMainBase::stopPlaying();
    guiManager()->enableActions();
    checkPosition();
 }

@@ -11,10 +11,15 @@
 #include "DQMServices/Core/interface/MonitorElement.h"
 
 // MET
+#include "DataFormats/METReco/interface/MET.h"
+#include "DataFormats/METReco/interface/METCollection.h"
 #include "DataFormats/METReco/interface/PFMET.h"
 #include "DataFormats/METReco/interface/PFMETCollection.h"
+#include "DataFormats/METReco/interface/CaloMET.h"
+#include "DataFormats/METReco/interface/CaloMETCollection.h"
 
 // Jets
+#include "DataFormats/JetReco/interface/Jet.h"
 #include "DataFormats/JetReco/interface/PFJet.h"
 #include "DataFormats/JetReco/interface/CaloJet.h"
 
@@ -36,6 +41,7 @@ class SUSY_HLT_Razor: public DQMEDAnalyzer{
   static double CalcMR(TLorentzVector ja,TLorentzVector jb);
   static double CalcR(double MR, TLorentzVector ja,TLorentzVector jb, edm::Handle<edm::View<reco::MET> > met, const std::vector<math::XYZTLorentzVector>& muons);
   virtual ~SUSY_HLT_Razor();
+  static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
   protected:
   void dqmBeginRun(edm::Run const &, edm::EventSetup const &) override;
@@ -50,13 +56,15 @@ class SUSY_HLT_Razor: public DQMEDAnalyzer{
   void bookHistos(DQMStore::IBooker &);
   
   //variables from config file
-  edm::EDGetTokenT<edm::View<reco::MET> > thePfMETCollection_;
+  edm::EDGetTokenT<edm::View<reco::MET> > theMETCollection_;
   edm::EDGetTokenT<edm::TriggerResults> triggerResults_;
   edm::EDGetTokenT<trigger::TriggerEvent> theTrigSummary_;
-  edm::EDGetTokenT<reco::PFJetCollection> thePfJetCollection_;
+  edm::EDGetTokenT<edm::View<reco::Jet> > theJetCollection_;
   edm::EDGetTokenT<std::vector<math::XYZTLorentzVector> > theHemispheres_;
 
   std::string triggerPath_;
+  std::string denomPath_; // denominator path for 1.4e34 lumi
+  std::string denomPathLoose_; // denominator path for 7e33 lumi
   edm::InputTag triggerFilter_;
   edm::InputTag caloFilter_;
   

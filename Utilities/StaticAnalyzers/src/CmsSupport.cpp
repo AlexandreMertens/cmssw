@@ -3,13 +3,15 @@
 // by Shahzad Malik MUZAFFAR [ Shahzad.Malik.MUZAFFAR@cern.ch ]
 //
 //===----------------------------------------------------------------------===//
+#include "CmsSupport.h"
 #include <clang/Basic/FileManager.h>
 #include <clang/StaticAnalyzer/Core/Checker.h>
 #include <clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h>
 #include <clang/StaticAnalyzer/Core/BugReporter/BugType.h>
 #include <llvm/ADT/SmallString.h>
-#include "llvm/Support/raw_ostream.h"
-#include "CmsSupport.h"
+#include <clang/AST/DeclTemplate.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/Regex.h>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -58,8 +60,23 @@ std::string support::getQualifiedName(const clang::NamedDecl &d) {
     ret = d.getQualifiedNameAsString();
   }
 
-  if (const FunctionDecl *fd = dyn_cast<FunctionDecl>(&d))
+  if (const FunctionDecl *fd = dyn_cast_or_null<FunctionDecl>(&d))
   {
+    if (fd->isFunctionTemplateSpecialization())
+    {
+      ret += "<";
+      const TemplateArgumentList *TemplateArgs = fd->getTemplateSpecializationArgs();
+      if (TemplateArgs)
+        {
+          unsigned num_args = TemplateArgs->size();
+		for (unsigned i = 0; i < num_args; ++i) {
+            if (i) ret +=",";
+              TemplateArgument TemplateArg = TemplateArgs->get(i);
+              if (TemplateArg.getKind() == TemplateArgument::ArgKind::Type) ret += TemplateArg.getAsType().getAsString();
+          }
+        }
+      ret += ">";
+    }
     // This is a function. getQualifiedNameAsString will return a string
     // like "ANamespace::AFunction". To this we append the list of parameters
     // so that we can distinguish correctly between
@@ -68,7 +85,7 @@ std::string support::getQualifiedName(const clang::NamedDecl &d) {
     // void ANamespace::AFunction(float);
     ret += "(";
     const FunctionType *ft = fd->getType()->castAs<FunctionType>();
-    if (const FunctionProtoType *fpt = dyn_cast<FunctionProtoType>(ft))
+    if (const FunctionProtoType *fpt = dyn_cast_or_null<FunctionProtoType>(ft))
     {
       unsigned num_params = fd->getNumParams();
       for (unsigned i = 0; i < num_params; ++i) {
@@ -116,7 +133,8 @@ bool support::isSafeClassName(const std::string &cname) {
     "cout", "cerr",
     "std::cout","std::cerr",
     "edm::RunningAverage","class edm::RunningAverage",
-    "TVirtualMutex", "class TVirtualMutex"
+    "TVirtualMutex", "class TVirtualMutex",
+    "boost::(anonymous namespace)::extents", "(anonymous namespace)::_1", "(anonymous namespace)::_2"
   };
   
   for (auto& name: names)

@@ -30,6 +30,10 @@ def efficiency_string(objtype,plot_type,triggerpath):
         xAxis = "p_{T} of Next-to-Leading Generated %s (GeV/c)" % (objtype)
         input_type = "gen%sMaxPt2" % (objtype)
     if plot_type == "TurnOn3":
+        title = "Next-to-next-to-Leading pT Turn-On"
+        xAxis = "p_{T} of Next-to-next-to-Leading Generated %s (GeV/c)" % (objtype)
+        input_type = "gen%sMaxPt3" % (objtype)
+    if plot_type == "TurnOn4":
         title = "SumEt Turn-On"
         xAxis = "SumEt of Leading Generated %s (GeV/c)" % (objtype)
         input_type = "gen%sSumEt" % (objtype)
@@ -41,6 +45,10 @@ def efficiency_string(objtype,plot_type,triggerpath):
         title = "#phi Efficiency"
         xAxis = "#phi of Generated %s " % (objtype)
         input_type = "gen%sPhi" % (objtype)
+    if plot_type == "EffDxy":
+        title = "Dxy Efficiency"
+        xAxis = "Dxy of Generated %s " % (objtype)
+        input_type = "gen%sDxy" % (objtype)
 
     yAxis = "%s / %s" % (numer_description, denom_description)
     all_titles = "%s for trigger %s; %s; %s" % (title, triggerpath,
@@ -59,11 +67,11 @@ def add_reco_strings(strings):
     strings.extend(reco_strings)
 
 
-plot_types = ["TurnOn1", "TurnOn2", "TurnOn3", "EffEta", "EffPhi"]
+plot_types = ["TurnOn1", "TurnOn2", "TurnOn3", "TurnOn4", "EffEta", "EffPhi", "EffDxy"]
 #--- IMPORTANT: Update this collection whenever you introduce a new object
 #               in the code (from EVTColContainer::getTypeString)
 obj_types  = ["Mu","refittedStandAloneMuons","Track","Ele","Photon","PFTau","PFJet","MET","PFMET","PFMHT","GenMET","CaloJet"
-             ,"CaloMET","l1MET"]
+             ,"CaloMET","CaloMHT","l1MET"]
 #--- IMPORTANT: Trigger are extracted from the hltExoticaValidator_cfi.py module
 triggers = [ ] 
 efficiency_strings = []
@@ -90,6 +98,10 @@ for type in plot_types:
 add_reco_strings(efficiency_strings)
 
 #--- IMPORTANT: Here you have to add the analyses one by one.
+hltExoticaPostLowPtTrimuon = hltExoticaPostProcessor.clone()
+hltExoticaPostLowPtTrimuon.subDirs = ['HLT/Exotica/LowPtTrimuon']
+hltExoticaPostLowPtTrimuon.efficiencyProfile = efficiency_strings
+
 hltExoticaPostHighPtDimuon = hltExoticaPostProcessor.clone()
 hltExoticaPostHighPtDimuon.subDirs = ['HLT/Exotica/HighPtDimuon']
 hltExoticaPostHighPtDimuon.efficiencyProfile = efficiency_strings
@@ -126,9 +138,13 @@ hltExoticaPostSingleMuon = hltExoticaPostProcessor.clone()
 hltExoticaPostSingleMuon.subDirs = ['HLT/Exotica/SingleMuon']
 hltExoticaPostSingleMuon.efficiencyProfile = efficiency_strings
 
-hltExoticaPostHT = hltExoticaPostProcessor.clone()
-hltExoticaPostHT.subDirs = ['HLT/Exotica/HT']
-hltExoticaPostHT.efficiencyProfile = efficiency_strings
+hltExoticaPostPFHT = hltExoticaPostProcessor.clone()
+hltExoticaPostPFHT.subDirs = ['HLT/Exotica/PFHT']
+hltExoticaPostPFHT.efficiencyProfile = efficiency_strings
+
+hltExoticaPostCaloHT = hltExoticaPostProcessor.clone()
+hltExoticaPostCaloHT.subDirs = ['HLT/Exotica/CaloHT']
+hltExoticaPostCaloHT.efficiencyProfile = efficiency_strings
 
 hltExoticaPostJetNoBptx = hltExoticaPostProcessor.clone()
 hltExoticaPostJetNoBptx.subDirs = ['HLT/Exotica/JetNoBptx']
@@ -183,6 +199,8 @@ hltExoticaHTDisplacedJets.subDirs = ['HLT/Exotica/HTDisplacedJets']
 hltExoticaHTDisplacedJets.efficiencyProfile = efficiency_strings
 
 hltExoticaPostProcessors = cms.Sequence(
+    # Tri-lepton paths
+    hltExoticaPostLowPtTrimuon +
     # Di-lepton paths
     hltExoticaPostHighPtDimuon +
     hltExoticaPostHighPtDielectron +
@@ -195,7 +213,8 @@ hltExoticaPostProcessors = cms.Sequence(
     hltExoticaPostHighPtPhoton +
     hltExoticaPostDiPhoton +
     # HT path
-    hltExoticaPostHT +
+    hltExoticaPostPFHT +
+    hltExoticaPostCaloHT +
     # NoBptx paths
     hltExoticaPostJetNoBptx +
     hltExoticaPostMuonNoBptx +

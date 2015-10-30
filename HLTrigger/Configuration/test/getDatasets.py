@@ -8,7 +8,7 @@ import FWCore.ParameterSet.Config as cms
 def extractDatasets(database, config):
   # dump the Streams and Datasets from the HLT configuration
   proc = subprocess.Popen(
-    "edmConfigFromDB --%s --configName %s --nopsets --noedsources --noes --noservices --nooutput --nopaths" % (database, config),
+    "hltConfigFromDB --%s --configName %s --nopsets --noedsources --noes --noservices --nooutput --nopaths" % (database, config),
     shell  = True,
     stdin  = None,
     stdout = subprocess.PIPE,
@@ -68,7 +68,7 @@ import FWCore.ParameterSet.Config as cms
 
 ''' % "getDatasets.py" )
 
-list_of_streams = ['A','AForPP','AForHI']
+list_of_streams = ['A','AForPP','AForHI','PhysicsEGammaCommissioning','PhysicsHadronsTaus','PhysicsMuons']
 for stream in list_of_streams:
   if stream  in process.streams.__dict__:
     dump.write('''

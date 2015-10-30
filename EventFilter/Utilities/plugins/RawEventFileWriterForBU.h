@@ -56,12 +56,16 @@ class RawEventFileWriterForBU
   IntJ perRunEventCount_;
   IntJ perRunFileCount_;
   IntJ perRunLumiCount_;
+  IntJ perRunLastLumi_;
 
   IntJ perLumiEventCount_;
   IntJ perLumiFileCount_;
   IntJ perLumiTotalEventCount_;
+  IntJ perLumiLostEventCount_;
+  IntJ perLumiSize_;
 
   IntJ perFileEventCount_;
+  IntJ perFileSize_;
 
   FastMonitor* fileMon_ = nullptr;
   FastMonitor* lumiMon_ = nullptr;
@@ -82,6 +86,9 @@ class RawEventFileWriterForBU
   uint32 adlerb_;
 
   static RawEventFileWriterForBU* instance;
+
+  unsigned int lumiOpen_ = 0;
+  unsigned int lumiClosed_ = 0;
 
 };
 #endif

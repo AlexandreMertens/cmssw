@@ -11,7 +11,7 @@
  *
  */
 
-#include "FWCore/Framework/interface/EDProducer.h"
+#include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/EventSetup.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -25,7 +25,7 @@ namespace edm {
 }
 
 // Class declaration
-class HLTPFJetIDProducer : public edm::EDProducer {
+class HLTPFJetIDProducer : public edm::stream::EDProducer<> {
   public:
     explicit HLTPFJetIDProducer(const edm::ParameterSet & iConfig);
     ~HLTPFJetIDProducer();
@@ -34,6 +34,7 @@ class HLTPFJetIDProducer : public edm::EDProducer {
 
   private:
     double minPt_;
+    double maxEta_;
     double CHF_;              ///< charged hadron fraction
     double NHF_;              ///< neutral hadron fraction
     double CEF_;              ///< charged EM fraction

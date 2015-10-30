@@ -1,4 +1,4 @@
-#include "FWCore/Framework/interface/one/EDProducerBase.h"
+#include "FWCore/Framework/interface/stream/EDProducerBase.h"
 
 #include "EventFilter/L1TRawToDigi/interface/Packer.h"
 #include "EventFilter/L1TRawToDigi/interface/Unpacker.h"
@@ -16,12 +16,14 @@ namespace l1t {
                return std::unique_ptr<PackerTokens>(new CaloTokens(cfg, cc));
             };
 
-            virtual PackerMap getPackers(int fed, int fw) override {
+            virtual void fillDescription(edm::ParameterSetDescription& desc) override {};
+
+            virtual PackerMap getPackers(int fed, unsigned int fw) override {
                PackerMap res;
 
-               if (fed == 1) {
-                  // Use amc id 1 for packing
-                  res[1] = {
+               if (fed == 1366) {
+                  // Use board id 1 for packing
+                  res[{1, 1}] = {
                      PackerFactory::get()->make("stage2::CaloTowerPacker"),
                      PackerFactory::get()->make("stage2::EGammaPacker"),
                      PackerFactory::get()->make("stage2::EtSumPacker"),
@@ -33,7 +35,7 @@ namespace l1t {
                return res;
             };
 
-            virtual void registerProducts(edm::one::EDProducerBase& prod) override {
+            virtual void registerProducts(edm::stream::EDProducerBase& prod) override {
                prod.produces<CaloTowerBxCollection>();
                prod.produces<EGammaBxCollection>();
                prod.produces<EtSumBxCollection>();
@@ -48,7 +50,7 @@ namespace l1t {
                return std::unique_ptr<UnpackerCollections>(new CaloCollections(e));
             };
 
-            virtual UnpackerMap getUnpackers(int fed, int amc, int fw) override {
+            virtual UnpackerMap getUnpackers(int fed, int board, int amc, unsigned int fw) override {
                auto tower_unp = UnpackerFactory::get()->make("stage2::CaloTowerUnpacker");
                auto egamma_unp = UnpackerFactory::get()->make("stage2::EGammaUnpacker");
                auto etsum_unp = UnpackerFactory::get()->make("stage2::EtSumUnpacker");
@@ -58,12 +60,11 @@ namespace l1t {
                auto mp_unp = UnpackerFactory::get()->make("stage2::MPUnpacker");
 
                UnpackerMap res;
-               if (fed == 1) {
-                  res[1] = egamma_unp;
-                  res[3] = etsum_unp;
-                  res[5] = jet_unp;
-                  res[7] = tau_unp;
-               } else if (fed == 2) {
+               if (fed == 1366) {
+                  res[13] = jet_unp;
+                  res[15] = jet_unp;
+                  res[21] = etsum_unp;
+               } else if (fed == 1360) {
                   res[1] = mp_unp;
                   res[3] = mp_unp;
                   res[5] = mp_unp;

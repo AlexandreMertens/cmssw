@@ -2,12 +2,8 @@ import FWCore.ParameterSet.Config as cms
 
 # SiStripMonitorCluster
 SiStripMonitorCluster = cms.EDAnalyzer("SiStripMonitorCluster",
-    # by default do not write out any file with histograms
-    # can overwrite this in .cfg file with: replace SiStripMonitorCluster.OutputMEsInRootFile = true
     ClusterProducerStrip = cms.InputTag('siStripClusters'),
     ClusterProducerPix = cms.InputTag('siPixelClusters'),
-    OutputMEsInRootFile = cms.bool(False),
-    OutputFileName = cms.string('SiStripMonitorCluster.root'),
                                      
     ResetMEsEachRun = cms.bool(False),
 
@@ -27,13 +23,22 @@ SiStripMonitorCluster = cms.EDAnalyzer("SiStripMonitorCluster",
     StripDCSfilter = cms.PSet(),
                                      
     CreateTrendMEs = cms.bool(False),
+    TrendVsLS = cms.bool(False),                                       
+
     Trending = cms.PSet(
-        Nbins = cms.int32(360),
+        Nbins = cms.int32(600),
         xmin = cms.double(0.0),
-        xmax = cms.double(1.0*60*60),
-        ymin = cms.double(0.0),
-        ymax = cms.double(100000.0)
+        xmax = cms.double(3600.),
+        xaxis = cms.string('Event Time in Seconds')
     ),
+
+    TrendingLS = cms.PSet(             
+        Nbins = cms.int32(2400),
+        xmin = cms.double(0.0),
+        xmax = cms.double(150),
+        xaxis = cms.string('Lumisection')
+        ),
+
     TH1ClusterNoise = cms.PSet(
         Nbinx          = cms.int32(20),
         xmin           = cms.double(-0.5),
@@ -134,19 +139,15 @@ SiStripMonitorCluster = cms.EDAnalyzer("SiStripMonitorCluster",
         minStoN    = cms.double(0.0),
         maxWidth   = cms.double(10000.0)
     ),
+
     TProfTotalNumberOfClusters = cms.PSet(
-        Nbins = cms.int32(600),
-        xmin = cms.double(0.0),
-        xmax = cms.double(1.0*60*60),
-        ymin = cms.double(0.0),
-        ymax = cms.double(0.0),
         subdetswitchon = cms.bool(False)
     ),
 
     TH1TotalNumberOfClusters = cms.PSet(
-        Nbinx          = cms.int32(80),
+        Nbinx          = cms.int32(100),
         xmin           = cms.double(-0.5),
-        xmax           = cms.double(15999.5),
+        xmax           = cms.double(14999.5),
         subdetswitchon = cms.bool(False)
     ),
                                        
@@ -212,10 +213,10 @@ SiStripMonitorCluster = cms.EDAnalyzer("SiStripMonitorCluster",
         ),
                                        
     MultiplicityRegions = cms.PSet(
-        k0 = cms.double(0.13),  # k from linear fit of the diagonal default 0.13
+        k0 = cms.double(0.097),  # k from linear fit of the diagonal default 0.13 for 2012 data, 0.097 for 2015
         q0 = cms.double(300),   # +/- variation of y axis intercept default 300
         dk0 = cms.double(40),   #+/- variation of k0 (in %) to contain the diagonal zone defoult 40
-        MaxClus = cms.double(20000), #Divide Region 2 and Region 3  default 20000
+        MaxClus = cms.double(26000), #Divide Region 2 and Region 3  default 20000 for 2012 data, 26000 for 2015
         MinPix = cms.double(50)  # minimum number of Pix clusters to flag events with zero Si clusters default 50
         ),
                                        
@@ -260,6 +261,16 @@ SiStripMonitorCluster = cms.EDAnalyzer("SiStripMonitorCluster",
         globalswitchon = cms.bool(False)
         ),
                                        
+    NclusVsCycleTimeProf2D = cms.PSet(
+        Nbins = cms.int32(70),
+        xmin = cms.double(-0.5),
+        xmax = cms.double(69.5),
+        Nbinsy = cms.int32(90),
+        ymin = cms.double(0.),
+        ymax = cms.double(90*262144),
+        globalswitchon = cms.bool(True)
+        ),
+
     Mod_On = cms.bool(True),
     ClusterHisto = cms.bool(False),
 

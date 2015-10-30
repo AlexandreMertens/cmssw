@@ -56,29 +56,23 @@ class Handle:
         # turn off warnings
         oldWarningLevel = ROOT.gErrorIgnoreLevel
         ROOT.gErrorIgnoreLevel = ROOT.kError
-        self._type      = typeString 
-        self._wrapper   = ROOT.edm.Wrapper (self._type)()
-        self._typeInfo  = self._wrapper.typeInfo()
-        self._exception = RuntimeError ("getByLabel not called for '%s'", self)
-        ROOT.SetOwnership (self._wrapper, False)
-        # restore warning state
-        ROOT.gErrorIgnoreLevel = oldWarningLevel
-        # O.k.  This is a little weird.  We want a pointer to an EDM
-        # wrapper, but we don't want the memory it is pointing to.
-        # So, we've created it and grabbed the type info.  Since we
-        # don't want a memory leak, we destroy it.
+        self._nodel = False
         if kwargs.get ('noDelete'):
             print "Not deleting wrapper"
             del kwargs['noDelete']
         else:
-            self._wrapper.IsA().Destructor( self._wrapper )
+            self._nodel = True
+        self._type = typeString 
+        self._resetWrapper()
+        self._exception = RuntimeError ("getByLabel not called for '%s'", self)
+        # restore warning state
+        ROOT.gErrorIgnoreLevel = oldWarningLevel
         # Since we deleted the options as we used them, that means
         # that kwargs should be empty.  If it's not, that means that
         # somebody passed in an argument that we're not using and we
         # should complain.
         if len (kwargs):
             raise RuntimeError, "Unknown arguments %s" % kwargs
-
 
     def isValid (self):
         """Returns true if getByLabel call was successful and data is
@@ -98,6 +92,18 @@ class Handle:
 
                                           
     ## Private member functions ##
+
+    def _resetWrapper (self):
+        """(Internal) reset the edm wrapper"""
+        self._wrapper   = ROOT.edm.Wrapper (self._type)()
+        self._typeInfo  = self._wrapper.typeInfo()
+        ROOT.SetOwnership (self._wrapper, False)
+        # O.k.  This is a little weird.  We want a pointer to an EDM
+        # wrapper, but we don't want the memory it is pointing to.
+        # So, we've created it and grabbed the type info.  Since we
+        # don't want a memory leak, we destroy it.
+        if not self._nodel :
+            ROOT.TClass.GetClass("edm::Wrapper<"+self._type+">").Destructor( self._wrapper )
 
     def _typeInfoGetter (self):
         """(Internal) Return the type info"""
@@ -216,17 +222,24 @@ class Lumis:
         # handle is always the last argument
         argsList = list (args)
         handle = argsList.pop()
-        if len(argsList)==1 and \
-               ( isinstance (argsList[0], tuple) or
-                 isinstance (argsList[0], list) ) :
-            if len (argsList) > 3:
-                raise RuntimeError, "getByLabel Error: label tuple has too " \
-                      "many arguments '%s'" % argsList[0]
-            argsList = list(argsList[0])
+        if len(argsList)==1 :
+            if( isinstance (argsList[0], tuple) or
+                isinstance (argsList[0], list) ) :
+                if len (argsList[0]) > 3:
+                    raise RuntimeError, "getByLabel Error: label tuple has too " \
+                        "many arguments '%s'" % argsList[0]
+                argsList = list(argsList[0])
+            if( type(argsList[0]) is str and ":" in argsList[0] ):
+                if argsList[0].count(":") > 3:
+                    raise RuntimeError, "getByLabel Error: label tuple has too " \
+                        "many arguments '%s'" % argsList[0].split(":")
+                argsList = argsList[0].split(":")
         while len(argsList) < 3:
             argsList.append ('')
         (moduleLabel, productInstanceLabel, processLabel) = argsList
         labelString = "'" + "', '".join(argsList) + "'"
+        if not handle._wrapper :
+            handle._resetWrapper()
         handle._setStatus ( self._lumi.getByLabel( handle._typeInfoGetter(),
                                                    moduleLabel,
                                                    productInstanceLabel,
@@ -367,17 +380,24 @@ class Runs:
         # handle is always the last argument
         argsList = list (args)
         handle = argsList.pop()
-        if len(argsList)==1 and \
-               ( isinstance (argsList[0], tuple) or
-                 isinstance (argsList[0], list) ) :
-            if len (argsList) > 3:
-                raise RuntimeError, "getByLabel Error: label tuple has too " \
-                      "many arguments '%s'" % argsList[0]
-            argsList = list(argsList[0])
+        if len(argsList)==1 :
+            if( isinstance (argsList[0], tuple) or
+                isinstance (argsList[0], list) ) :
+                if len (argsList[0]) > 3:
+                    raise RuntimeError, "getByLabel Error: label tuple has too " \
+                        "many arguments '%s'" % argsList[0]
+                argsList = list(argsList[0])
+            if( type(argsList[0]) is str and ":" in argsList[0] ):
+                if argsList[0].count(":") > 3:
+                    raise RuntimeError, "getByLabel Error: label tuple has too " \
+                        "many arguments '%s'" % argsList[0].split(":")
+                argsList = argsList[0].split(":")
         while len(argsList) < 3:
             argsList.append ('')
         (moduleLabel, productInstanceLabel, processLabel) = argsList
         labelString = "'" + "', '".join(argsList) + "'"
+        if not handle._wrapper :
+            handle._resetWrapper()
         handle._setStatus ( self._run.getByLabel( handle._typeInfoGetter(),
                                                    moduleLabel,
                                                    productInstanceLabel,
@@ -536,17 +556,24 @@ class Events:
         # handle is always the last argument
         argsList = list (args)
         handle = argsList.pop()
-        if len(argsList)==1 and \
-               ( isinstance (argsList[0], tuple) or
-                 isinstance (argsList[0], list) ) :
-            if len (argsList) > 3:
-                raise RuntimeError, "getByLabel Error: label tuple has too " \
-                      "many arguments '%s'" % argsList[0]
-            argsList = list(argsList[0])
+        if len(argsList)==1 :
+            if( isinstance (argsList[0], tuple) or
+                isinstance (argsList[0], list) ) :
+                if len (argsList[0]) > 3:
+                    raise RuntimeError, "getByLabel Error: label tuple has too " \
+                        "many arguments '%s'" % argsList[0]
+                argsList = list(argsList[0])
+            if( type(argsList[0]) is str and ":" in argsList[0] ):
+                if argsList[0].count(":") > 3:
+                    raise RuntimeError, "getByLabel Error: label tuple has too " \
+                        "many arguments '%s'" % argsList[0].split(":")
+                argsList = argsList[0].split(":")
         while len(argsList) < 3:
             argsList.append ('')
         (moduleLabel, productInstanceLabel, processLabel) = argsList
         labelString = "'" + "', '".join(argsList) + "'"
+        if not handle._wrapper :
+            handle._resetWrapper()
         handle._setStatus ( self._event.getByLabel( handle._typeInfoGetter(),
                                                     moduleLabel,
                                                     productInstanceLabel,

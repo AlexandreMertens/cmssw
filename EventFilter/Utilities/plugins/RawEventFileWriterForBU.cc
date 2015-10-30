@@ -34,9 +34,11 @@ RawEventFileWriterForBU::RawEventFileWriterForBU(edm::ParameterSet const& ps):
   rawJsonDef_.addLegendItem("NEvents","integer",DataPointDefinition::SUM);
 
   perFileEventCount_.setName("NEvents");
+  perFileSize_.setName("NBytes");
 
   fileMon_ = new FastMonitor(&rawJsonDef_,false);
   fileMon_->registerGlobalMonitorable(&perFileEventCount_,false,nullptr);
+  fileMon_->registerGlobalMonitorable(&perFileSize_,false,nullptr);
   fileMon_->commit(nullptr);
 
   //per-lumi JSD and FastMonitor
@@ -44,15 +46,20 @@ RawEventFileWriterForBU::RawEventFileWriterForBU(edm::ParameterSet const& ps):
   eolJsonDef_.addLegendItem("NEvents","integer",DataPointDefinition::SUM);
   eolJsonDef_.addLegendItem("NFiles","integer",DataPointDefinition::SUM);
   eolJsonDef_.addLegendItem("TotalEvents","integer",DataPointDefinition::SUM);
+  eolJsonDef_.addLegendItem("NLostEvents","integer",DataPointDefinition::SUM);
 
   perLumiEventCount_.setName("NEvents");
   perLumiFileCount_.setName("NFiles");
   perLumiTotalEventCount_.setName("TotalEvents");
+  perLumiLostEventCount_.setName("NLostEvents");
+  perLumiSize_.setName("NBytes");
 
   lumiMon_ = new FastMonitor(&eolJsonDef_,false);
   lumiMon_->registerGlobalMonitorable(&perLumiEventCount_,false,nullptr);
   lumiMon_->registerGlobalMonitorable(&perLumiFileCount_,false,nullptr);
   lumiMon_->registerGlobalMonitorable(&perLumiTotalEventCount_,false,nullptr);
+  lumiMon_->registerGlobalMonitorable(&perLumiLostEventCount_,false,nullptr);
+  lumiMon_->registerGlobalMonitorable(&perLumiSize_,false,nullptr);
   lumiMon_->commit(nullptr);
 
 
@@ -61,15 +68,18 @@ RawEventFileWriterForBU::RawEventFileWriterForBU(edm::ParameterSet const& ps):
   eorJsonDef_.addLegendItem("NEvents","integer",DataPointDefinition::SUM);
   eorJsonDef_.addLegendItem("NFiles","integer",DataPointDefinition::SUM);
   eorJsonDef_.addLegendItem("NLumis","integer",DataPointDefinition::SUM);
+  eorJsonDef_.addLegendItem("LastLumi","integer",DataPointDefinition::SUM);
 
   perRunEventCount_.setName("NEvents");
   perRunFileCount_.setName("NFiles");
   perRunLumiCount_.setName("NLumis");
+  perRunLastLumi_.setName("LastLumi");
  
   runMon_ = new FastMonitor(&eorJsonDef_,false);
   runMon_->registerGlobalMonitorable(&perRunEventCount_,false,nullptr);
   runMon_->registerGlobalMonitorable(&perRunFileCount_,false,nullptr);
   runMon_->registerGlobalMonitorable(&perRunLumiCount_,false,nullptr);
+  runMon_->registerGlobalMonitorable(&perRunLastLumi_,false,nullptr);
   runMon_->commit(nullptr);
 
   instance = this;
@@ -108,10 +118,8 @@ void RawEventFileWriterForBU::doOutputEvent(FRDEventMsgView const& msg)
 
   // throttle event output
   usleep(microSleep_);
-
-  perLumiEventCount_.value()++;
-  perLumiTotalEventCount_.value()++;
   perFileEventCount_.value()++;
+  perFileSize_.value()+=msg.size();
 
   //  cms::Adler32((const char*) msg.startAddress(), msg.size(), adlera_, adlerb_);
 }
@@ -179,7 +187,7 @@ void RawEventFileWriterForBU::initialize(std::string const& destinationDir, std:
   }
 
   perFileEventCount_.value() = 0;
-  perLumiFileCount_.value()++;
+  perFileSize_.value() = 0;
 
 
   adlera_ = 1;
@@ -239,9 +247,17 @@ void RawEventFileWriterForBU::finishFileWrite(int ls)
 
     //move the json file from open
     rename(path.c_str(),(destinationDir_+path.substr(path.rfind("/"))).c_str());
+    //there is a small chance that script gets interrupted while this isn't consistent (non-atomic)
+    perLumiFileCount_.value()++;
+    perLumiEventCount_.value()+=perFileEventCount_.value();
+    perLumiSize_.value()+=perFileSize_.value();
+    perLumiTotalEventCount_.value()+=perFileEventCount_.value();
+    //update open lumi value when first file is completed
+    lumiOpen_ =  ls;
 
     edm::LogInfo("RawEventFileWriterForBU") << "Wrote JSON input file: " << path 
-					    << " with perFileEventCount = " << perFileEventCount_.value();
+					    << " with perFileEventCount = " << perFileEventCount_.value()
+                                            << " and size " << perFileSize_.value();
 
 }
 
@@ -266,10 +282,13 @@ void RawEventFileWriterForBU::endOfLS(int ls)
   perRunEventCount_.value() += perLumiEventCount_.value();
   perRunFileCount_.value() += perLumiFileCount_.value();
   perRunLumiCount_.value() += 1;
+  perRunLastLumi_.value() = ls;
 
   perLumiEventCount_ = 0;
   perLumiFileCount_ = 0;
   perLumiTotalEventCount_ = 0;
+  perLumiSize_ = 0;
+  lumiClosed_ =  ls;
 }
 
 void RawEventFileWriterForBU::stop()
@@ -283,6 +302,7 @@ void RawEventFileWriterForBU::stop()
 // runs on SIGINT and terminates the process
 void RawEventFileWriterForBU::handler(int s)
 {
+  if (lumiOpen_>lumiClosed_)  endOfLS(lumiOpen_);
   printf("Caught signal %d. Writing EOR file!\n",s);
   if (destinationDir_.size() > 0)
     {

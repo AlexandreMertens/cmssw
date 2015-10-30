@@ -37,6 +37,7 @@
 #include "DataFormats/METReco/interface/CaloMET.h"
 #include "DataFormats/METReco/interface/CaloMETCollection.h"
 #include "DataFormats/L1Trigger/interface/L1EtMissParticle.h"
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/TauReco/interface/PFTau.h"
 #include "DataFormats/TauReco/interface/PFTauFwd.h"
 #include "DataFormats/JetReco/interface/PFJet.h"
@@ -75,6 +76,7 @@ public:
     ~HLTExoticaSubAnalysis();
     void beginJob();
     void beginRun(const edm::Run & iRun, const edm::EventSetup & iEventSetup);
+    void endRun();
 
     /// Method to book all relevant histograms in the DQMStore.
     /// Uses the IBooker interface for thread safety.
@@ -104,7 +106,9 @@ private:
     /// This function applies the selectors initialized previously to the objects,
     /// and matches the passing objects to HLT objects.
     void insertCandidates(const unsigned int & objtype, const EVTColContainer * col,
-                          std::vector<reco::LeafCandidate> * matches, std::map<int,double> & theSumEt);
+                          std::vector<reco::LeafCandidate> * matches, 
+                          std::map<int,double> & theSumEt,
+                          std::map<int, std::vector<const reco::Track*> > & trkObjs);
 
     /// The internal functions to book and fill histograms
     void bookHist(DQMStore::IBooker &iBooker, const std::string & source, const std::string & objType,
@@ -132,16 +136,24 @@ private:
     std::string _hltProcessName;
     edm::InputTag _genParticleLabel;
     edm::InputTag _trigResultsLabel;
+    edm::InputTag _beamSpotLabel;
     std::map<unsigned int, edm::InputTag> _recLabels;
     /// And also the tokens to get the object collections
     edm::EDGetTokenT<reco::GenParticleCollection> _genParticleToken;
     edm::EDGetTokenT<edm::TriggerResults> _trigResultsToken;
+    edm::EDGetTokenT<reco::BeamSpot> _bsToken;
     std::map<unsigned int, edm::EDGetToken> _tokens;
 
     /// Some kinematical parameters
     std::vector<double> _parametersEta;
     std::vector<double> _parametersPhi;
     std::vector<double> _parametersTurnOn;
+    std::vector<double> _parametersTurnOnSumEt;
+    std::vector<double> _parametersDxy;
+
+    // flag to switch off
+    bool _drop_pt2;
+    bool _drop_pt3;
 
     /// gen/rec objects cuts
     std::map<unsigned int, std::string> _genCut;
@@ -162,6 +174,7 @@ private:
     StringCutObjectSelector<reco::PFMET>       * _recPFMHTSelector;
     StringCutObjectSelector<reco::GenMET>      * _genMETSelector;
     StringCutObjectSelector<reco::CaloMET>     * _recCaloMETSelector;
+    StringCutObjectSelector<reco::CaloMET>     * _recCaloMHTSelector;
     StringCutObjectSelector<l1extra::L1EtMissParticle> * _l1METSelector;
     StringCutObjectSelector<reco::PFTau>       * _recPFTauSelector;
     StringCutObjectSelector<reco::Photon>      * _recPhotonSelector;
@@ -170,6 +183,9 @@ private:
 
     /// The plotters: managers of each hlt path where the plots are done
     std::vector<HLTExoticaPlotter> _plotters;
+
+    /// counting HLT passed events  
+    std::map<std::string,int> _triggerCounter;
 
     /// Interface to the HLT information
     HLTConfigProvider _hltConfig;

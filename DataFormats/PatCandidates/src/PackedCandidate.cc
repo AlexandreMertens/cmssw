@@ -61,9 +61,13 @@ void pat::PackedCandidate::packVtx(bool unpackAfterwards) {
 }
 
 void pat::PackedCandidate::unpack() const {
-    p4_ = PolarLorentzVector(MiniFloatConverter::float16to32(packedPt_),
+    float pt = MiniFloatConverter::float16to32(packedPt_);
+    double shift = (pt<1. ? 0.1*pt : 0.1/pt); // shift particle phi to break degeneracies in angular separations
+    double sign = ( ( int(pt*10) % 2 == 0 ) ? 1 : -1 ); // introduce a pseudo-random sign of the shift
+    double phi = int16_t(packedPhi_)*3.2f/std::numeric_limits<int16_t>::max() + sign*shift*3.2/std::numeric_limits<int16_t>::max();
+    p4_ = PolarLorentzVector(pt,
                              int16_t(packedEta_)*6.0f/std::numeric_limits<int16_t>::max(),
-                             int16_t(packedPhi_)*3.2f/std::numeric_limits<int16_t>::max(),
+                             phi,
                              MiniFloatConverter::float16to32(packedM_));
     p4c_ = p4_;
     unpacked_ = true;
@@ -181,22 +185,6 @@ void pat::PackedCandidate::unpackTrk() const {
 
 //// Everything below is just trivial implementations of reco::Candidate methods
 
-pat::PackedCandidate::const_iterator pat::PackedCandidate::begin() const { 
-  return const_iterator( new const_iterator_imp_specific ); 
-}
-
-pat::PackedCandidate::const_iterator pat::PackedCandidate::end() const { 
-  return  const_iterator( new const_iterator_imp_specific ); 
-}
-
-pat::PackedCandidate::iterator pat::PackedCandidate::begin() { 
-  return iterator( new iterator_imp_specific ); 
-}
-
-pat::PackedCandidate::iterator pat::PackedCandidate::end() { 
-  return iterator( new iterator_imp_specific ); 
-}
-
 const reco::CandidateBaseRef & pat::PackedCandidate::masterClone() const {
   throw cms::Exception("Invalid Reference")
     << "this Candidate has no master clone reference."
@@ -284,6 +272,14 @@ bool pat::PackedCandidate::longLived() const {return false;}
 
 bool pat::PackedCandidate::massConstraint() const {return false;}
 
+// puppiweight
+// puppiweight
+void pat::PackedCandidate::setPuppiWeight(float p, float p_nolep) {
+  // Set both weights at once to avoid misconfigured weights if called in the wrong order
+  packedPuppiweight_ = pack8logClosed((p-0.5)*2,-2,0,64);
+  packedPuppiweightNoLepDiff_ = pack8logClosed((p_nolep-0.5)*2,-2,0,64) - packedPuppiweight_;
+}
 
+float pat::PackedCandidate::puppiWeight() const { return unpack8logClosed(packedPuppiweight_,-2,0,64)/2. + 0.5;}
 
-
+float pat::PackedCandidate::puppiWeightNoLep() const { return unpack8logClosed(packedPuppiweightNoLepDiff_+packedPuppiweight_,-2,0,64)/2. + 0.5;}

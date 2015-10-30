@@ -25,8 +25,8 @@ HLTBTagHarvestingAnalyzer::dqmEndJob(DQMStore::IBooker & ibooker, DQMStore::IGet
 	//for each hltPath and for each flavour, do the "b-tag efficiency vs jet pt" and "b-tag efficiency vs mistag rate" plots
 	for (unsigned int ind=0; ind<hltPathNames_.size();ind++) 
 	{
-		dqmFolder_hist = Form("HLT/BTag/Discrimanator/%s",hltPathNames_[ind].c_str());
-		std::string effDir = Form("HLT/BTag/Discrimanator/%s/efficiency",hltPathNames_[ind].c_str());
+		dqmFolder_hist = Form("HLT/BTag/Discriminator/%s",hltPathNames_[ind].c_str());
+		std::string effDir = Form("HLT/BTag/Discriminator/%s/efficiency",hltPathNames_[ind].c_str());
 		ibooker.setCurrentFolder(effDir);
 		TH1 *den =NULL;
 		TH1 *num =NULL; 
@@ -151,7 +151,9 @@ void HLTBTagHarvestingAnalyzer::mistagrate(DQMStore::IBooker& ibooker, DQMStore:
 		eff->SetBinContent(binX,miseff);
 		eff->SetBinError(binX,miseffErr);
 	}
-	ibooker.book1D(effName.c_str(),eff);
+	MonitorElement *me;
+	me = ibooker.book1D(effName.c_str(),eff);
+	me->setEfficiencyFlag();
 
 	delete eff;
 	return;
@@ -175,17 +177,25 @@ TH1F  HLTBTagHarvestingAnalyzer::calculateEfficiency1D(DQMStore::IBooker& ibooke
 	eff.SetMarkerSize(0.8);
 	eff.GetYaxis()->SetRangeUser(-0.001,1.001);
 	for(int i=1;i<=num.GetNbinsX();i++){
-		double d, n;
+		double d, n,err;
 		d= den.GetBinContent(i);
 		n= num.GetBinContent(i);
 		double e;
-		if(d!=0)	e=n/d;
-		else		e=0;
-		double err = sqrt(e*(1-e)/d); //from binomial standard deviation
+		if(d!=0){
+			e=n/d;
+			err =  sqrt(e*(1-e)/d); //from binomial standard deviation
+		}
+		else{
+			e=0;
+			err=0;
+		}		
 		eff.SetBinContent( i, e );
 		eff.SetBinError( i, err );
 	}
-	ibooker.book1D(effName,&eff);
+	
+	MonitorElement *me;
+	me = ibooker.book1D(effName,&eff);
+	me->setEfficiencyFlag();
 	
 	return eff;
 }

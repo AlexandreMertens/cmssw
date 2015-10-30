@@ -14,20 +14,31 @@
 #include <map>
 #include <vector>
 
+#include "tbb/concurrent_unordered_map.h"
+
+namespace edm {
+  struct TypeIDHasher {
+    size_t operator()(TypeID const& tid) const {
+      tbb::tbb_hash<std::string> hasher;
+      return hasher(std::string(tid.name()));
+    }
+  };
+}
+
 namespace reco {
 namespace parser {
 
 class MethodInvoker {
 private: // Private Data Members
-      edm::FunctionWithDict method_;
-      edm::MemberWithDict member_;
-      std::vector<AnyMethodArgument> ints_; // already fixed to the correct type
-      std::vector<void*> args_;
+  edm::FunctionWithDict method_;
+  edm::MemberWithDict member_;
+  std::vector<AnyMethodArgument> ints_; // already fixed to the correct type
+  std::vector<void*> args_;
 
-      bool isFunction_;
+  bool isFunction_;
   edm::TypeWithDict retTypeFinal_;
 private: // Private Function Members
-      void setArgs();
+  void setArgs();
 public: // Public Function Members
   explicit MethodInvoker(const edm::FunctionWithDict& method,
                          const std::vector<AnyMethodArgument>& ints =
@@ -50,19 +61,19 @@ public: // Public Function Members
   edm::ObjectWithDict invoke(const edm::ObjectWithDict& obj,
                              edm::ObjectWithDict& retstore) const;
 };
-        
+
 /// A bigger brother of the MethodInvoker:
 /// - it owns also the object in which to store the result
 /// - it handles by itself the popping out of Refs and Ptrs
 /// in this way, it can map 1-1 to a name and set of args
 struct SingleInvoker : boost::noncopyable {
 private: // Private Data Members
-        method::TypeCode            retType_;
-        std::vector<MethodInvoker>  invokers_;
-        mutable edm::ObjectWithDict      storage_;
-        bool                        storageNeedsDestructor_;
-        /// true if this invoker just pops out a ref and returns (ref.get(), false)
-        bool isRefGet_;
+  method::TypeCode retType_;
+  std::vector<MethodInvoker> invokers_;
+  mutable edm::ObjectWithDict storage_;
+  bool storageNeedsDestructor_;
+  /// true if this invoker just pops out a ref and returns (ref.get(), false)
+  bool isRefGet_;
 public:
   SingleInvoker(const edm::TypeWithDict&, const std::string& name,
                 const std::vector<AnyMethodArgument>& args);
@@ -88,31 +99,32 @@ public:
 
 /// Keeps different SingleInvokers for each dynamic type of the objects passed to invoke()
 struct LazyInvoker {
+  typedef std::shared_ptr<SingleInvoker> SingleInvokerPtr;
+  typedef tbb::concurrent_unordered_map<edm::TypeID, SingleInvokerPtr,edm::TypeIDHasher> InvokerMap;
 private: // Private Data Members
   std::string name_;
   std::vector<AnyMethodArgument> argsBeforeFixups_;
   // the shared ptr is only to make the code exception safe
   // otherwise I think it could leak if the constructor of
-  // SingleInvoker throws an exception (which can happen)
-  typedef boost::shared_ptr<SingleInvoker> SingleInvokerPtr;
-  mutable std::map<edm::TypeID, SingleInvokerPtr> invokers_;
+  // SingleInvoker throws an exception (which can happen) 
+  mutable InvokerMap invokers_;
 private: // Private Function Members
   const SingleInvoker& invoker(const edm::TypeWithDict&) const;
 public: // Public Function Members
   explicit LazyInvoker(const std::string& name,
                        const std::vector<AnyMethodArgument>& args);
-      ~LazyInvoker();
+  ~LazyInvoker();
 
   /// invoke method, returns object that points to result
   /// (after stripping '*' and '&')
-      /// the object is still owned by the LazyInvoker
+  /// the object is still owned by the LazyInvoker
   /// the actual edm::ObjectWithDict where the result is
   /// stored will be pushed in vector
-      /// so that, if needed, its destructor can be called
+  /// so that, if needed, its destructor can be called
   edm::ObjectWithDict invoke(const edm::ObjectWithDict& o,
                              std::vector<edm::ObjectWithDict>& v) const;
 
-      /// invoke and coerce result to double
+  /// invoke and coerce result to double
   double invokeLast(const edm::ObjectWithDict& o,
                     std::vector<edm::ObjectWithDict>& v) const;
 };

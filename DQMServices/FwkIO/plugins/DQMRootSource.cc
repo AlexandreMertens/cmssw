@@ -72,7 +72,7 @@ namespace {
   }
   //NOTE: the merge logic comes from DataFormats/Histograms/interface/MEtoEDMFormat.h
   void mergeTogether(TH1* iOriginal,TH1* iToAdd) {
-    if(iOriginal->TestBit(TH1::kCanRebin)==true && iToAdd->TestBit(TH1::kCanRebin) ==true) {
+    if(iOriginal->CanExtendAllAxes() && iToAdd->CanExtendAllAxes()) {
       TList list;
       list.Add(iToAdd);
       if( -1 == iOriginal->Merge(&list)) {
@@ -694,18 +694,20 @@ void DQMRootSource::readElements() {
     while (m_presentIndexItr != m_orderedIndices.end() && skipIt(m_runlumiToRange[*m_presentIndexItr].m_run,m_runlumiToRange[*m_presentIndexItr].m_lumi))
       ++m_presentIndexItr;
 
-    if(runLumiRange.m_type == kNoTypesStored) {continue;}
-    boost::shared_ptr<TreeReaderBase> reader = m_treeReaders[runLumiRange.m_type];
-    ULong64_t index = runLumiRange.m_firstIndex;
-    ULong64_t endIndex = runLumiRange.m_lastIndex+1;
-    for (; index != endIndex; ++index)
-    {
-      bool isLumi = runLumiRange.m_lumi !=0;
-      if (m_shouldReadMEs)
-        reader->read(index,*store,isLumi);
+    if(runLumiRange.m_type != kNoTypesStored) {
+      boost::shared_ptr<TreeReaderBase> reader = m_treeReaders[runLumiRange.m_type];
+      ULong64_t index = runLumiRange.m_firstIndex;
+      ULong64_t endIndex = runLumiRange.m_lastIndex+1;
+      for (; index != endIndex; ++index)
+      {
+        bool isLumi = runLumiRange.m_lumi !=0;
+        if (m_shouldReadMEs)
+          reader->read(index,*store,isLumi);
 
-      //std::cout << runLumiRange.m_run << " " << runLumiRange.m_lumi <<" "<<index<< " " << runLumiRange.m_type << std::endl;
+        //std::cout << runLumiRange.m_run << " " << runLumiRange.m_lumi <<" "<<index<< " " << runLumiRange.m_type << std::endl;
+      }
     }
+
     if (m_presentIndexItr != m_orderedIndices.end())
     {
       //are there more parts to this same run/lumi?

@@ -1,11 +1,11 @@
 #include "FWCore/Services/src/InitRootHandlers.h"
 
+#include "FWCore/ServiceRegistry/interface/ActivityRegistry.h"
 #include "DataFormats/Common/interface/RefCoreStreamer.h"
 #include "FWCore/MessageLogger/interface/ELseverityLevel.h"
 #include "FWCore/MessageLogger/interface/MessageLogger.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/PluginManager/interface/PluginCapabilities.h"
-#include "FWCore/RootAutoLibraryLoader/interface/RootAutoLibraryLoader.h"
 #include "FWCore/ParameterSet/interface/ConfigurationDescriptions.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "FWCore/Utilities/interface/DictionaryTools.h"
@@ -13,14 +13,14 @@
 #include "FWCore/Utilities/interface/TypeWithDict.h"
 #include "FWCore/Utilities/interface/UnixSignalHandlers.h"
 
+#include <sys/wait.h>
 #include <sstream>
 #include <string.h>
 
-#include "Cintex/Cintex.h"
-#include "G__ci.h"
 #include "TROOT.h"
 #include "TError.h"
 #include "TFile.h"
+#include "TInterpreter.h"
 #include "TH1.h"
 #include "TSystem.h"
 #include "TUnixSystem.h"
@@ -29,8 +29,12 @@
 
 #include "TThread.h"
 #include "TClassTable.h"
-#include "Reflex/Type.h"
 
+namespace edm {
+  namespace service {
+    int cmssw_stacktrace(void *);
+  }
+}
 
 namespace {
   enum class SeverityLevel {
@@ -123,9 +127,8 @@ namespace {
           (el_message.find("already in TClassTable") != std::string::npos) ||
           (el_message.find("matrix not positive definite") != std::string::npos) ||
           (el_message.find("not a TStreamerInfo object") != std::string::npos) ||
-	  //This deals with a missing dictionary problem
-	  ( (el_message.find("Collection proxy for") !=std::string::npos && 
-	     el_message.find("was not properly initialized!") != std::string::npos)) ||
+          (el_message.find("Problems declaring payload") != std::string::npos) ||
+          (el_message.find("Announced number of args different from the real number of argument passed") != std::string::npos) || // Always printed if gDebug>0 - regardless of whether warning message is real.
           (el_location.find("Fit") != std::string::npos) ||
           (el_location.find("TDecompChol::Solve") != std::string::npos) ||
           (el_location.find("THistPainter::PaintInit") != std::string::npos) ||
@@ -182,11 +185,31 @@ namespace {
   }
 
   extern "C" {
-    void sig_dostack_then_abort(int sig,siginfo_t*,void*) {
-      if (gSystem) {
-        const char* signalname = "unknown";
-        switch (sig) {
-          case SIGBUS:
+
+    static int full_cerr_write(const char *text)
+    {
+      const char *buffer = text;
+      size_t count = strlen(text);
+      ssize_t written = 0;
+      while (count)
+      {
+        written = write(2, buffer, count);
+        if (written == -1) 
+        {
+          if (errno == EINTR) {continue;}
+          else {return -errno;}
+        }
+        count -= written;
+        buffer += written;
+      }
+      return 0;
+    }
+
+    void sig_dostack_then_abort(int sig, siginfo_t*, void*) {
+
+      const char* signalname = "unknown";
+      switch (sig) {
+        case SIGBUS:
             signalname = "bus error";
             break;
           case SIGSEGV:
@@ -196,14 +219,49 @@ namespace {
             signalname = "illegal instruction"; 
           default:
             break;
+      }
+      full_cerr_write("\n\nA fatal system signal has occurred: ");
+      full_cerr_write(signalname);
+      full_cerr_write("\nThe following is the call stack containing the origin of the signal.\n"
+        "NOTE:The first few functions on the stack are artifacts of processing the signal and can be ignored\n\n");
+
+      char child_stack[4*1024];
+      char *child_stack_ptr = child_stack + 4*1024;
+        // On Linux, we currently use jemalloc.  This registers pthread_atfork handlers; these
+        // handlers are *not* async-signal safe.  Hence, a deadlock is possible if we invoke
+        // fork() from our signal handlers.  Accordingly, we use clone (not POSIX, but AS-safe)
+        // as that is closer to the 'raw metal' syscall and avoids pthread_atfork handlers.
+      int pid =
+#ifdef __linux__
+        clone(edm::service::cmssw_stacktrace, child_stack_ptr, CLONE_VM|CLONE_FS|SIGCHLD, nullptr);
+#else
+        fork();
+      if (child_stack_ptr) {} // Suppress 'unused variable' warning on non-Linux
+      if (pid == 0) {edm::service::cmssw_stacktrace(nullptr); ::abort();}
+#endif
+      if (pid == -1)
+      {
+        full_cerr_write("(Attempt to perform stack dump failed.)\n");
+      }
+      else
+      {
+        int status;
+        if (waitpid(pid, &status, 0) == -1)
+        {
+          full_cerr_write("(Failed to wait on stack dump output.)\n");
         }
-        edm::LogError("FatalSystemSignal")<<"A fatal system signal has occurred: "<<signalname;
-        std::cerr<< "\n\nA fatal system signal has occurred: "<<signalname<<"\n"
-                 <<"The following is the call stack containing the origin of the signal.\n"
-                 <<"NOTE:The first few functions on the stack are artifacts of processing the signal and can be ignored\n\n";
-        
-        gSystem->StackTrace();
-        std::cerr<<"\nA fatal system signal has occurred: "<<signalname<<"\n";
+      }
+
+      full_cerr_write("\nA fatal system signal has occurred: ");
+      full_cerr_write(signalname);
+      full_cerr_write("\n");
+
+      // For these three known cases, re-raise the signal so get the correct
+      // exit code.
+      if ((sig == SIGILL) || (sig == SIGSEGV) || (sig == SIGBUS))
+      {
+        signal(sig, SIG_DFL);
+        raise(sig);
       }
       ::abort();
     }
@@ -216,7 +274,21 @@ namespace {
 
 namespace edm {
   namespace service {
-    InitRootHandlers::InitRootHandlers (ParameterSet const& pset)
+
+    int cmssw_stacktrace(void * /*arg*/)
+    {
+      char *const *argv = edm::service::InitRootHandlers::getPstackArgv();
+      execv("/bin/sh", argv);
+      ::abort();
+      return 1;
+    }
+
+    static char pstackName[] = "(CMSSW stack trace helper)";
+    static char dashC[] = "-c";
+    char InitRootHandlers::pidString_[InitRootHandlers::pidStringLength_] = {};
+    char * const InitRootHandlers::pstackArgv_[] = {pstackName, dashC, InitRootHandlers::pidString_, nullptr};
+
+    InitRootHandlers::InitRootHandlers (ParameterSet const& pset, ActivityRegistry& iReg)
       : RootHandlers(),
         unloadSigHandler_(pset.getUntrackedParameter<bool> ("UnloadRootSigHandler")),
         resetErrHandler_(pset.getUntrackedParameter<bool> ("ResetRootErrHandler")),
@@ -237,6 +309,8 @@ namespace edm {
         gSystem->ResetSignal(kSigFloatingException);
         gSystem->ResetSignal(kSigWindowChanged);
       } else if(pset.getUntrackedParameter<bool>("AbortOnSignal")){
+        cachePidInfo();
+
         //NOTE: ROOT can also be told to abort on these kinds of problems BUT
         // it requires an TApplication to be instantiated which causes problems
         gSystem->ResetSignal(kSigBus);
@@ -254,6 +328,7 @@ namespace edm {
         sigIllHandler_ = std::shared_ptr<const void>(nullptr,[](void*) {
           installCustomHandler(SIGILL,sig_abort);
         });
+        iReg.watchPostForkReacquireResources(this, &InitRootHandlers::cachePidInfoHandler);
       }
 
       if(resetErrHandler_) {
@@ -264,25 +339,19 @@ namespace edm {
 
       // Enable automatic Root library loading.
       if(autoLibraryLoader_) {
-        RootAutoLibraryLoader::enable();
-        if(loadAllDictionaries_) {
-          RootAutoLibraryLoader::loadAll();
-        }
+        gInterpreter->SetClassAutoloading(1);
       }
-
-      // Enable Cintex.
-      ROOT::Cintex::Cintex::Enable();
 
       // Set ROOT parameters.
       TTree::SetMaxTreeSize(kMaxLong64);
       TH1::AddDirectory(kFALSE);
-      G__SetCatchException(0);
+      //G__SetCatchException(0);
 
       // Set custom streamers
       setRefCoreStreamer();
 
       // Load the library containing dictionaries for std:: classes, if not already loaded.
-      if (!TypeWithDict(typeid(std::vector<std::vector<unsigned int> >)).hasDictionary()) {
+      if (!hasDictionary(typeid(std::vector<std::vector<unsigned int> >))) {
          edmplugin::PluginCapabilities::get()->load(dictionaryPlugInPrefix() + "std::vector<std::vector<unsigned int> >");
       }
 
@@ -339,6 +408,11 @@ namespace edm {
       descriptions.add("InitRootHandlers", desc);
     }
 
+    char *const *
+    InitRootHandlers::getPstackArgv() {
+      return pstackArgv_;
+    }
+
     void
     InitRootHandlers::enableWarnings_() {
       s_ignoreWarnings =false;
@@ -347,6 +421,24 @@ namespace edm {
     void
     InitRootHandlers::ignoreWarnings_() {
       s_ignoreWarnings = true;
+    }
+
+    void
+    InitRootHandlers::cachePidInfo()
+    {
+      if (snprintf(pidString_, pidStringLength_-1, "gdb -quiet -p %d 2>&1 <<EOF |\n"
+        "set width 0\n"
+        "set height 0\n"
+        "set pagination no\n"
+        "thread apply all bt\n"
+        "EOF\n"
+        "/bin/sed -n -e 's/^\\((gdb) \\)*//' -e '/^#/p' -e '/^Thread/p'", getpid()) >= pidStringLength_)
+      {
+        std::ostringstream sstr;
+        sstr << "Unable to pre-allocate stacktrace handler information";
+        edm::Exception except(edm::errors::OtherCMS, sstr.str());
+        throw except;
+      }
     }
 
   }  // end of namespace service

@@ -53,6 +53,9 @@ PrimaryVertexAnalyzer4PUSlimmed::PrimaryVertexAnalyzer4PUSlimmed(
         edm::EDGetTokenT<reco::VertexCollection>(
             consumes<reco::VertexCollection>(l)));
   }
+  if(use_TP_associator_) {
+    recoTrackToTrackingParticleAssociatorToken_ = consumes<reco::TrackToTrackingParticleAssociator>(edm::InputTag("trackAssociatorByHits"));
+  }
 }
 
 PrimaryVertexAnalyzer4PUSlimmed::~PrimaryVertexAnalyzer4PUSlimmed() {}
@@ -999,15 +1002,14 @@ void PrimaryVertexAnalyzer4PUSlimmed::analyze(const edm::Event& iEvent,
     // TODO(rovere) fetch an already existing collection from the
     // event instead of making another association on the fly???
     if (use_TP_associator_) {
-      edm::ESHandle<TrackAssociatorBase> theHitsAssociator;
-      iSetup.get<TrackAssociatorRecord>().get("TrackAssociatorByHits",
-                                              theHitsAssociator);
-      associatorByHits_ = reinterpret_cast<const TrackAssociatorBase*>(
-          theHitsAssociator.product());
+      edm::Handle<reco::TrackToTrackingParticleAssociator> theHitsAssociator;
+      iEvent.getByToken(recoTrackToTrackingParticleAssociatorToken_,
+                        theHitsAssociator);
+      associatorByHits_ = theHitsAssociator.product();
       r2s_ = associatorByHits_->associateRecoToSim(
-          trackCollectionH, TPCollectionH, &iEvent, &iSetup);
+          trackCollectionH, TPCollectionH);
       s2r_ = associatorByHits_->associateSimToReco(
-          trackCollectionH, TPCollectionH, &iEvent, &iSetup);
+          trackCollectionH, TPCollectionH);
     }
   }
 
@@ -1059,12 +1061,12 @@ void PrimaryVertexAnalyzer4PUSlimmed::analyze(const edm::Event& iEvent,
     int num_total_reco_vertices_multiassoc2gen = 0;
     int num_total_reco_vertices_duplicate = 0;
     for (auto const& v : simpv) {
-      float mistag = 0.;
+      float mistag = 1.;
       // TODO(rovere) put selectors here in front of fill* methods.
       if (v.eventId.event() == 0) {
         if (std::find(v.rec_vertices.begin(), v.rec_vertices.end(),
                       &((*recVtxs.product())[0])) != v.rec_vertices.end()) {
-          mistag = 1.;
+          mistag = 0.;
           kind_of_signal_vertex =
               (kind_of_signal_vertex & ~(1<<IS_ASSOC2FIRST_RECO)) |
               (signal_is_highest_pt << IS_ASSOC2FIRST_RECO);
@@ -1135,6 +1137,7 @@ void PrimaryVertexAnalyzer4PUSlimmed::analyze(const edm::Event& iEvent,
         // index -1.
         if (iv == (*recVtxs.product()).end()) {
           mes_[label]["TruePVLocationIndex"]->Fill(-1.);
+          mes_[label]["TruePVLocationIndexCumulative"]->Fill(-1.);
           if (signal_is_highest_pt)
             mes_[label]["TruePVLocationIndexSignalIsHighest"]->Fill(-1.);
           else

@@ -1,8 +1,5 @@
 import FWCore.ParameterSet.Config as cms
 
-from RecoJets.JetProducers.ak4PFJets_cfi import ak4PFJets
-from RecoJets.Configuration.RecoPFJets_cff import ak4PFJetsCHS
-
 hemispheres = cms.EDFilter(
     "HLTRHemisphere",
     inputTag = cms.InputTag("ak4PFJetsCHS"),
@@ -11,4 +8,14 @@ hemispheres = cms.EDFilter(
     maxNJ = cms.int32(9)
 )
 
-hemisphereSequence = cms.Sequence(ak4PFJets*ak4PFJetsCHS*hemispheres)
+caloHemispheres = cms.EDFilter(
+    "HLTRHemisphere",
+    inputTag = cms.InputTag("ak4CaloJets"),
+    minJetPt = cms.double(30),
+    maxEta = cms.double(3.0),
+    maxNJ = cms.int32(9)
+)
+
+hemisphereSequence = cms.Sequence(hemispheres)
+
+caloHemisphereSequence = cms.Sequence(caloHemispheres)
