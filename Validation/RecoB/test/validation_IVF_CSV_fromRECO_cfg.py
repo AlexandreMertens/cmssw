@@ -159,10 +159,14 @@ process.dqmSaver.saveByRun = cms.untracked.int32(-1)
 process.dqmSaver.saveAtJobEnd =cms.untracked.bool(True) 
 process.dqmSaver.forceRunNumber = cms.untracked.int32(1)
 process.PoolSource.fileNames = [
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/20A1016F-1D5B-E511-B4B9-00261894394D.root',
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/28D2598A-205B-E511-915E-0025905A48D0.root',
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/6E45DA91-205B-E511-A733-0025905A608C.root',
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/AA8A91CA-185B-E511-96AB-002618943810.root'
 # TTbar no PU
-    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/48F1F053-EE9D-E411-B4AB-0025905938D4.root',
-    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/A6FF14A5-F39D-E411-B7EE-0025905964C0.root',
-    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/B6CCCDA5-F39D-E411-889E-0025905A60E0.root' 
+#    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/48F1F053-EE9D-E411-B4AB-0025905938D4.root',
+#    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/A6FF14A5-F39D-E411-B7EE-0025905964C0.root',
+#    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/B6CCCDA5-F39D-E411-889E-0025905A60E0.root' 
 # Ttbar PU
 #    '/store/relval/CMSSW_7_4_6/RelValTTbar_13/GEN-SIM-RECO/PU25ns_MCRUN2_74_V9-v2/00000/403FA79E-251A-E511-B21A-0025905B855C.root',
 #    '/store/relval/CMSSW_7_4_6/RelValTTbar_13/GEN-SIM-RECO/PU25ns_MCRUN2_74_V9-v2/00000/623B1740-551A-E511-8A61-0025905A60CA.root',
