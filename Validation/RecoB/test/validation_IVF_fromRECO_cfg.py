@@ -8,7 +8,11 @@ start customization
 
 #Enter here the Global tags
 #tag =  'POSTLS172_V3::All'
-tag = 'MCRUN2_73_V7::All'
+#tag = 'MCRUN2_73_V7::All'
+tag = '74X_mcRun2_asymptotic_v2'
+#Do you want to apply JEC? For data, no need to add 'Residual', the code is checking if events are Data or MC and add 'Residual' for Data.
+applyJEC = True
+corrLabel = 'ak4PFCHSL1FastL2L3'
 #Data or MC?
 runOnMC    = True
 #Flavour plots for MC: "all" = plots for all jets ; "dusg" = plots for d, u, s, dus, g independently ; not mandatory and any combinations are possible 
@@ -27,7 +31,7 @@ tagConfig = cms.VPSet(
         ),
 )
 
-# Rerunning the iclusive vertexing 
+# Rerunning the inclusive vertexing 
 process.load("RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff")
 process.load("RecoVertex.AdaptiveVertexFinder.trackVertexArbitrator_cfi")
 process.load("RecoVertex.AdaptiveVertexFinder.vertexMerger_cfi")
@@ -70,6 +74,7 @@ print "Global Tag : ", tag
 
 process.load("DQMServices.Components.DQMEnvironment_cfi")
 process.load("DQMServices.Core.DQM_cfg")
+process.load("JetMETCorrections.Configuration.JetCorrectionServices_cff")
 
 #keep the logging output to a nice level
 process.load("FWCore.MessageLogger.MessageLogger_cfi")
@@ -79,20 +84,23 @@ if runOnMC:
     #Simple 
 
     #for MC jet flavour
-    process.load("PhysicsTools.JetMCAlgos.CaloJetsMCFlavour_cfi")
-    process.AK4byRef.jets = cms.InputTag("ak4PFJetsCHS")
+    process.load("PhysicsTools.JetMCAlgos.HadronAndPartonSelector_cfi")
+    process.load("PhysicsTools.JetMCAlgos.AK4PFJetsMCFlavourInfos_cfi")
+    process.ak4JetFlavourInfos.jets = cms.InputTag("ak4PFJetsCHS")
     process.flavourSeq = cms.Sequence(
-        process.myPartons *
-        process.AK4Flavour
+        process.selectedHadronsAndPartons *
+        process.ak4JetFlavourInfos
     )
     #Validation sequence
     process.load("Validation.RecoB.bTagAnalysis_cfi")
-    process.bTagValidation.jetMCSrc = 'AK4byValAlgo'
+    process.bTagValidation.jetMCSrc = 'ak4JetFlavourInfos'
     process.bTagValidation.tagConfig = tagConfig
     process.bTagHarvestMC.tagConfig = tagConfig
     process.bTagValidation.flavPlots = flavPlots
     process.bTagHarvestMC.flavPlots = flavPlots
     process.bTagValidation.doPUid = cms.bool(PUid)
+    process.bTagValidation.doJEC = applyJEC
+    process.bTagValidation.JECsource = cms.string(corrLabel)
     process.ak4GenJetsForPUid = cms.EDFilter("GenJetSelector",
                                              src = cms.InputTag("ak4GenJets"),
                                              cut = cms.string('pt > 8.'),
@@ -108,10 +116,21 @@ else :
     process.bTagHarvest.tagConfig = tagConfig
 
 # load the full reconstraction configuration, to make sure we're getting all needed dependencies
-process.load("Configuration.StandardSequences.MagneticField_cff")
-process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+
+process.load('Configuration.StandardSequences.Services_cff')
+process.load('Configuration.EventContent.EventContent_cff')
+
+#process.load("Configuration.StandardSequences.MagneticField_cff")
+process.load('Configuration.StandardSequences.MagneticField_38T_cff')
+#process.load("Configuration.StandardSequences.MagneticField_AutoFromDBCurrent_cff")
+#process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_condDBv2_cff')
 process.load("Configuration.StandardSequences.Reconstruction_cff")
-process.load("Configuration.Geometry.GeometryIdeal_cff")
+#process.load("Configuration.Geometry.GeometryIdeal_cff")
+process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
+
+
+
 
 process.GlobalTag.globaltag = tag
 
@@ -137,8 +156,12 @@ process.dqmSaver.saveByRun = cms.untracked.int32(-1)
 process.dqmSaver.saveAtJobEnd =cms.untracked.bool(True) 
 process.dqmSaver.forceRunNumber = cms.untracked.int32(1)
 process.PoolSource.fileNames = [
-    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/48F1F053-EE9D-E411-B4AB-0025905938D4.root',
-    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/A6FF14A5-F39D-E411-B7EE-0025905964C0.root',
-    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/B6CCCDA5-F39D-E411-889E-0025905A60E0.root' 
+#    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/48F1F053-EE9D-E411-B4AB-0025905938D4.root',
+#    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/A6FF14A5-F39D-E411-B7EE-0025905964C0.root',
+#    '/store/relval/CMSSW_7_4_0_pre5/RelValTTbar_13/GEN-SIM-RECO/MCRUN2_73_V7-v1/00000/B6CCCDA5-F39D-E411-889E-0025905A60E0.root' 
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/20A1016F-1D5B-E511-B4B9-00261894394D.root',
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/28D2598A-205B-E511-915E-0025905A48D0.root',
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/6E45DA91-205B-E511-A733-0025905A608C.root',
+       '/store/relval/CMSSW_7_4_12/RelValTTbar_13/GEN-SIM-RECO/74X_mcRun2_asymptotic_v2-v1/00000/AA8A91CA-185B-E511-96AB-002618943810.root'
 ]
 
