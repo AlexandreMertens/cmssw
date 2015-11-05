@@ -8,7 +8,11 @@ start customization
 
 #Enter here the Global tags
 #tag =  'POSTLS172_V3::All'
-tag = 'MCRUN2_73_V7::All'
+#"tag = 'MCRUN2_73_V7::All'
+tag = '74X_mcRun2_asymptotic_v2'
+#Do you want to apply JEC? For data, no need to add 'Residual', the code is checking if events are Data or MC and add 'Residual' for Data.
+applyJEC = True
+corrLabel = 'ak4PFCHSL1FastL2L3'
 #Data or MC?
 runOnMC    = True
 #Flavour plots for MC: "all" = plots for all jets ; "dusg" = plots for d, u, s, dus, g independently ; not mandatory and any combinations are possible 
@@ -101,15 +105,17 @@ if runOnMC:
     #Simple 
 
     #for MC jet flavour
-    process.load("PhysicsTools.JetMCAlgos.CaloJetsMCFlavour_cfi")
-    process.AK4byRef.jets = cms.InputTag("ak4PFJetsCHS")
+    #process.load("PhysicsTools.JetMCAlgos.CaloJetsMCFlavour_cfi")
+    process.load("PhysicsTools.JetMCAlgos.HadronAndPartonSelector_cfi")
+    process.load("PhysicsTools.JetMCAlgos.AK4PFJetsMCFlavourInfos_cfi")
+    process.ak4JetFlavourInfos.jets = cms.InputTag("ak4PFJetsCHS")
     process.flavourSeq = cms.Sequence(
-        process.myPartons *
-        process.AK4Flavour
+        process.selectedHadronsAndPartons *
+        process.ak4JetFlavourInfos
     )
     #Validation sequence
     process.load("Validation.RecoB.bTagAnalysis_cfi")
-    process.bTagValidation.jetMCSrc = 'AK4byValAlgo'
+    process.bTagValidation.jetMCSrc = 'ak4JetFlavourInfos'
     process.bTagValidation.tagConfig = tagConfig
     process.bTagHarvestMC.tagConfig = tagConfig
     process.bTagValidation.flavPlots = flavPlots
@@ -130,10 +136,13 @@ else :
     process.bTagHarvest.tagConfig = tagConfig
 
 # load the full reconstraction configuration, to make sure we're getting all needed dependencies
-process.load("Configuration.StandardSequences.MagneticField_cff")
-process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+#process.load("Configuration.StandardSequences.MagneticField_cff")
+process.load('Configuration.StandardSequences.MagneticField_38T_cff')
+#process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_cff")
+process.load("Configuration.StandardSequences.FrontierConditions_GlobalTag_condDBv2_cff")
 process.load("Configuration.StandardSequences.Reconstruction_cff")
-process.load("Configuration.Geometry.GeometryIdeal_cff")
+process.load('Configuration.StandardSequences.GeometryRecoDB_cff')
+#process.load("Configuration.Geometry.GeometryIdeal_cff")
 
 process.GlobalTag.globaltag = tag
 
