@@ -65,9 +65,52 @@ if not "ak4PFJetsCHS" in whichJets:
     process.softPFElectronsTagInfos.jets          = newjetID
     process.patJetGenJetMatch.src                 = newjetID
 
+
+from RecoBTag.ImpactParameter.impactParameter_cff import *
+from RecoBTag.SecondaryVertex.secondaryVertex_cff import *
+from RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff import *
+
+
+process.customPfImpactParameterTagInfos = cms.EDProducer("CandIPProducer",
+    candidates = cms.InputTag("particleFlow"),
+    computeGhostTrack = cms.bool(True),
+    computeProbabilities = cms.bool(True),
+    ghostTrackPriorDeltaR = cms.double(0.03),
+    jetDirectionUsingGhostTrack = cms.bool(False),
+    jetDirectionUsingTracks = cms.bool(False),
+    jets = cms.InputTag("ak4PFJetsCHS"),
+    maxDeltaR = cms.double(0.4),
+    maximumChiSquared = cms.double(9999),
+    maximumLongitudinalImpactParameter = cms.double(9999),
+    maximumTransverseImpactParameter = cms.double(9999),
+    minimumNumberOfHits = cms.int32(0),
+    minimumNumberOfPixelHits = cms.int32(0),
+    minimumTransverseMomentum = cms.double(0),
+    primaryVertex = cms.InputTag("offlinePrimaryVertices"),
+    useTrackQuality = cms.bool(False)
+)
+
+pfCombinedInclusiveSecondaryVertexV2BJetTags.tagInfos = cms.VInputTag(cms.InputTag("customPfImpactParameterTagInfos"), cms.InputTag("pfInclusiveSecondaryVertexFinderTagInfos"))
+
+process.customTrackBTagging = cms.Sequence(
+    (
+      # impact parameters and IP-only algorithms
+      process.customPfImpactParameterTagInfos *
+      ( 
+        # SV tag infos depending on IP tag infos, and SV (+IP) based algos
+        inclusiveCandidateVertexing *
+        pfInclusiveSecondaryVertexFinderTagInfos *
+        pfSimpleInclusiveSecondaryVertexHighEffBJetTags *
+        pfCombinedInclusiveSecondaryVertexV2BJetTags
+
+      )
+    )
+)
+
+
 process.btagSequence = cms.Sequence(
     process.ak4JetTracksAssociatorAtVertexPF *
-    process.btagging
+    process.customTrackBTagging
     )
 process.jetSequences = cms.Sequence(process.goodOfflinePrimaryVertices * process.btagSequence)
 
@@ -113,7 +156,7 @@ else:
     process.JECseq *= (getattr(process,corrLabel+"ResidualCorrector") * getattr(process,corrLabel+"L1FastL2L3ResidualCorrector"))
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1)
+    input = cms.untracked.int32(100)
 )
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring()
@@ -151,3 +194,4 @@ process.MessageLogger.cerr.FwkReport.reportEvery = 100
 
 process.GlobalTag = tag
 
+open('pydump.py','w').write(process.dumpPython())
