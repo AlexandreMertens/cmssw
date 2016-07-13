@@ -70,6 +70,7 @@ from RecoBTag.ImpactParameter.impactParameter_cff import *
 from RecoBTag.SecondaryVertex.secondaryVertex_cff import *
 from RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff import *
 from DQMOffline.RecoB.bTagTrackIPAnalysis_cff import *
+from DQMOffline.RecoB.bTagGenericAnalysis_cff import *
 
 process.customPfImpactParameterTagInfos = cms.EDProducer("CandIPProducer",
     candidates = cms.InputTag("particleFlow"),
@@ -90,7 +91,8 @@ process.customPfImpactParameterTagInfos = cms.EDProducer("CandIPProducer",
     useTrackQuality = cms.bool(False)
 )
 
-pfCombinedInclusiveSecondaryVertexV2BJetTags.tagInfos = cms.VInputTag(cms.InputTag("customPfImpactParameterTagInfos"), cms.InputTag("pfInclusiveSecondaryVertexFinderTagInfos"))
+process.customPfCombinedInclusiveSecondaryVertexV2BJetTags = pfCombinedInclusiveSecondaryVertexV2BJetTags.clone()
+process.customPfCombinedInclusiveSecondaryVertexV2BJetTags.tagInfos = cms.VInputTag(cms.InputTag("customPfImpactParameterTagInfos"), cms.InputTag("pfInclusiveSecondaryVertexFinderTagInfos"))
 
 process.customTrackBTagging = cms.Sequence(
     (
@@ -101,12 +103,25 @@ process.customTrackBTagging = cms.Sequence(
         inclusiveCandidateVertexing *
         pfInclusiveSecondaryVertexFinderTagInfos *
         pfSimpleInclusiveSecondaryVertexHighEffBJetTags *
-        pfCombinedInclusiveSecondaryVertexV2BJetTags
+        process.customPfCombinedInclusiveSecondaryVertexV2BJetTags
 
       )
     )
 )
 
+tagConfig = cms.VPSet(
+    cms.PSet(
+            bTagTrackIPAnalysisBlock,
+            type = cms.string('CandIP'),
+            label = cms.InputTag("customPfImpactParameterTagInfos"),
+            folder = cms.string("IPTagCustom")
+        ),
+    cms.PSet(
+            bTagGenericAnalysisBlock,
+            label = cms.InputTag("customPfCombinedInclusiveSecondaryVertexV2BJetTags"),
+            folder = cms.string("CSVv2Custom")
+        )
+    )
 
 process.btagSequence = cms.Sequence(
     process.ak4JetTracksAssociatorAtVertexPF *
@@ -132,14 +147,10 @@ if runOnMC:
             process.myPartons *
             process.AK4Flavour
             )
-    process.bTagValidation.tagConfig = cms.VPSet(
-        cms.PSet(
-            bTagTrackIPAnalysisBlock,
-            label = cms.InputTag("customPfImpactParameterTagInfos"),
-            folder = cms.string("IPTagCustom")
-        )
 
-    )
+    process.bTagValidation.tagConfig += tagConfig
+    process.bTagHarvestMC.tagConfig += tagConfig
+
     process.bTagValidation.applyPtHatWeight = False
     process.bTagValidation.doJetID = True
     process.bTagValidation.doJEC = applyJEC
@@ -164,7 +175,7 @@ else:
     process.JECseq *= (getattr(process,corrLabel+"ResidualCorrector") * getattr(process,corrLabel+"L1FastL2L3ResidualCorrector"))
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(100)
+    input = cms.untracked.int32(2000)
 )
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring()
