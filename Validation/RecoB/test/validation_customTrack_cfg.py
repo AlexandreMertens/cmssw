@@ -69,7 +69,7 @@ if not "ak4PFJetsCHS" in whichJets:
 from RecoBTag.ImpactParameter.impactParameter_cff import *
 from RecoBTag.SecondaryVertex.secondaryVertex_cff import *
 from RecoVertex.AdaptiveVertexFinder.inclusiveVertexing_cff import *
-
+from DQMOffline.RecoB.bTagTrackIPAnalysis_cff import *
 
 process.customPfImpactParameterTagInfos = cms.EDProducer("CandIPProducer",
     candidates = cms.InputTag("particleFlow"),
@@ -132,6 +132,14 @@ if runOnMC:
             process.myPartons *
             process.AK4Flavour
             )
+    process.bTagValidation.tagConfig = cms.VPSet(
+        cms.PSet(
+            bTagTrackIPAnalysisBlock,
+            label = cms.InputTag("customPfImpactParameterTagInfos"),
+            folder = cms.string("IPTagCustom")
+        )
+
+    )
     process.bTagValidation.applyPtHatWeight = False
     process.bTagValidation.doJetID = True
     process.bTagValidation.doJEC = applyJEC
