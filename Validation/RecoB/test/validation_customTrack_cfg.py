@@ -91,9 +91,73 @@ process.customPfImpactParameterTagInfos = cms.EDProducer("CandIPProducer",
     useTrackQuality = cms.bool(False)
 )
 
-process.customPfCombinedInclusiveSecondaryVertexV2BJetTags = pfCombinedInclusiveSecondaryVertexV2BJetTags.clone()
-process.customPfCombinedInclusiveSecondaryVertexV2BJetTags.tagInfos = cms.VInputTag(cms.InputTag("customPfImpactParameterTagInfos"), cms.InputTag("pfInclusiveSecondaryVertexFinderTagInfos"))
 
+process.customPfInclusiveSecondaryVertexFinderTagInfos = pfInclusiveSecondaryVertexFinderTagInfos.clone()
+process.customPfCombinedInclusiveSecondaryVertexV2BJetTags = pfCombinedInclusiveSecondaryVertexV2BJetTags.clone()
+process.customPfCombinedInclusiveSecondaryVertexV2BJetTags.tagInfos = cms.VInputTag(cms.InputTag("customPfImpactParameterTagInfos"), cms.InputTag("customPfInclusiveSecondaryVertexFinderTagInfos"))
+process.customCandidateCombinedSecondaryVertexV2Computer = candidateCombinedSecondaryVertexV2Computer.clone()
+
+trackSelection = cms.PSet(
+        a_dR = cms.double(-0.001053),
+        a_pT = cms.double(0.005263),
+        b_dR = cms.double(0.6263),
+        b_pT = cms.double(0.3684),
+        jetDeltaRMax = cms.double(0.3),
+        maxDecayLen = cms.double(99999.9),
+        maxDistToAxis = cms.double(99999.9),
+        max_pT = cms.double(500),
+        max_pT_dRcut = cms.double(0.1),
+        max_pT_trackPTcut = cms.double(3),
+        min_pT = cms.double(120),
+        min_pT_dRcut = cms.double(0.5),
+        normChi2Max = cms.double(99999.9),
+        pixelHitsMin = cms.uint32(0),
+        ptMin = cms.double(0.0),
+        qualityClass = cms.string('any'),
+        sip2dSigMax = cms.double(99999.9),
+        sip2dSigMin = cms.double(-99999.9),
+        sip2dValMax = cms.double(99999.9),
+        sip2dValMin = cms.double(-99999.9),
+        sip3dSigMax = cms.double(99999.9),
+        sip3dSigMin = cms.double(-99999.9),
+        sip3dValMax = cms.double(99999.9),
+        sip3dValMin = cms.double(-99999.9),
+        totalHitsMin = cms.uint32(0),
+        useVariableJTA = cms.bool(False)
+    )
+trackPseudoSelection = cms.PSet(
+        a_dR = cms.double(-0.001053),
+        a_pT = cms.double(0.005263),
+        b_dR = cms.double(0.6263),
+        b_pT = cms.double(0.3684),
+        jetDeltaRMax = cms.double(0.3),
+        maxDecayLen = cms.double(99999.9),
+        maxDistToAxis = cms.double(99999.9),
+        max_pT = cms.double(500),
+        max_pT_dRcut = cms.double(0.1),
+        max_pT_trackPTcut = cms.double(3),
+        min_pT = cms.double(120),
+        min_pT_dRcut = cms.double(0.5),
+        normChi2Max = cms.double(99999.9),
+        pixelHitsMin = cms.uint32(0),
+        ptMin = cms.double(0.0),
+        qualityClass = cms.string('any'),
+        sip2dSigMax = cms.double(99999.9),
+        sip2dSigMin = cms.double(-99999.9),
+        sip2dValMax = cms.double(99999.9),
+        sip2dValMin = cms.double(-99999.9),
+        sip3dSigMax = cms.double(99999.9),
+        sip3dSigMin = cms.double(-99999.9),
+        sip3dValMax = cms.double(99999.9),
+        sip3dValMin = cms.double(-99999.9),
+        totalHitsMin = cms.uint32(0),
+        useVariableJTA = cms.bool(False)
+    )
+
+process.customCandidateCombinedSecondaryVertexV2Computer.trackSelection = trackSelection
+process.customCandidateCombinedSecondaryVertexV2Computer.trackPseudoSelection = trackPseudoSelection
+
+process.customPfCombinedInclusiveSecondaryVertexV2BJetTags.jetTagComputer = cms.string("customCandidateCombinedSecondaryVertexV2Computer")
 process.customTrackBTagging = cms.Sequence(
     (
       # impact parameters and IP-only algorithms
@@ -101,10 +165,8 @@ process.customTrackBTagging = cms.Sequence(
       ( 
         # SV tag infos depending on IP tag infos, and SV (+IP) based algos
         inclusiveCandidateVertexing *
-        pfInclusiveSecondaryVertexFinderTagInfos *
-        pfSimpleInclusiveSecondaryVertexHighEffBJetTags *
+        process.customPfInclusiveSecondaryVertexFinderTagInfos *
         process.customPfCombinedInclusiveSecondaryVertexV2BJetTags
-
       )
     )
 )
@@ -204,7 +266,7 @@ process.dqmSaver.saveByRun = cms.untracked.int32(-1)
 process.dqmSaver.saveAtJobEnd =cms.untracked.bool(True) 
 process.dqmSaver.forceRunNumber = cms.untracked.int32(1)
 process.PoolSource.fileNames = [
-       '/store/mc/RunIISpring16DR80/TT_TuneCUETP8M1_13TeV-powheg-pythia8/GEN-SIM-RECODEBUG/PUSpring16_RECODEBUG_80X_mcRun2_asymptotic_2016_v3_ext3-v1/20000/00C31A90-2237-E611-9C70-002590D0AFD0.root',
+ "file:/afs/cern.ch/work/s/selvaggi/public/00C31A90-2237-E611-9C70-002590D0AFD0.root"
 ]
 
 #keep the logging output to a nice level
