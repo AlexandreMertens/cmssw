@@ -74,6 +74,25 @@ pfBTagging = cms.Sequence(
     )
 )
 
+
+pfBTaggingV2 = cms.Sequence(
+
+     # SV tag infos depending on IP tag infos, and SV (+IP) based algos
+     inclusiveCandidateVertexing *
+     pfInclusiveSecondaryVertexFinderTagInfos *
+     pfSimpleInclusiveSecondaryVertexHighEffBJetTags *
+     pfCombinedInclusiveSecondaryVertexV2BJetTags
+
+)
+
+
+
 btagging = cms.Sequence(
     pfBTagging * pfCTagging
 )
+
+
+btaggingV2 = cms.Sequence(pfBTaggingV2)
+
+                                                                
+

@@ -65,9 +65,13 @@ if not "ak4PFJetsCHS" in whichJets:
     process.softPFElectronsTagInfos.jets          = newjetID
     process.patJetGenJetMatch.src                 = newjetID
 
+
+
 process.btagSequence = cms.Sequence(
     process.ak4JetTracksAssociatorAtVertexPF *
     process.btagging
+    #process.btaggingV2
+
     )
 process.jetSequences = cms.Sequence(process.goodOfflinePrimaryVertices * process.btagSequence)
 
@@ -113,7 +117,7 @@ else:
     process.JECseq *= (getattr(process,corrLabel+"ResidualCorrector") * getattr(process,corrLabel+"L1FastL2L3ResidualCorrector"))
 
 process.maxEvents = cms.untracked.PSet(
-    input = cms.untracked.int32(-1)
+    input = cms.untracked.int32(10)
 )
 process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring()
@@ -150,4 +154,4 @@ process.load("FWCore.MessageLogger.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 100
 
 process.GlobalTag = tag
-
+open('pydump.py','w').write(process.dumpPython())

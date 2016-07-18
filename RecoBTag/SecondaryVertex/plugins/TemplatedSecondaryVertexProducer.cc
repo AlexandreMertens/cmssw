@@ -1155,6 +1155,12 @@ void TemplatedSecondaryVertexProducer<IPTI,VTX>::fillDescriptions(edm::Configura
     trackSelection.add<double>("sip3dSigMax",99999.9);
     trackSelection.add<double>("sip2dSigMin",-99999.9);
     trackSelection.add<double>("b_dR",0.6263);
+    trackSelection.add<bool>("useMvaSelection",false);
+    std::string xmlpath = "RecoBTag/SecondaryVertex/data/TMVAClassification_BDT.weights.xml.gz";
+    
+
+    trackSelection.add<edm::FileInPath>("weightFile",edm::FileInPath(xmlpath));
+    trackSelection.add<double>("trackSelBDTVarMin",-99999.9);
     desc.add<edm::ParameterSetDescription>("trackSelection",trackSelection);
   }
   desc.add<std::string>("trackSort","sip3dSig");

@@ -21,6 +21,9 @@ trackSelectionBlock = cms.PSet(
 		sip3dValMin = cms.double(-99999.9),
 		sip2dValMin = cms.double(-99999.9),
 		normChi2Max = cms.double(99999.9),
-                useVariableJTA = cms.bool(False)        
+                useVariableJTA = cms.bool(False),        
+                useMvaSelection = cms.bool(False),        
+                trackSelBDTVarMin = cms.double(-99999.9),
+                weightFile = cms.FileInPath('RecoBTag/SecondaryVertex/data/TMVAClassification_BDT.weights.xml.gz')
                 )
         )

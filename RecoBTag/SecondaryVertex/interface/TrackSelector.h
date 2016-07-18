@@ -9,6 +9,8 @@
 #include "DataFormats/Candidate/interface/CandidateFwd.h"
 #include "DataFormats/BTauReco/interface/IPTagInfo.h"
 
+#include "CommonTools/Utils/interface/TMVAEvaluator.h"
+
 namespace reco {
 
 class TrackSelector {
@@ -56,8 +58,17 @@ class TrackSelector {
 	double				sip3dValMax;
 	double				sip3dSigMin;
 	double				sip3dSigMax;
+	double				trackSelBDTVarMin;
+	bool                            useMvaSelection_;
 	bool                            useVariableJTA_;
-	reco::btag::variableJTAParameters varJTApars;
+        
+        edm::FileInPath           weightFile_;
+  
+        std::unique_ptr<TMVAEvaluator>  evaluator_MVA_;
+        std::vector<std::string> variables_; 
+
+	
+        reco::btag::variableJTAParameters varJTApars;
 };
 
 } // namespace reco
